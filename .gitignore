@@ -2,3 +2,5 @@ node_modules
 dist
 .env
 .DS_Store
+"signing.keystore"  
+"signing-key-info.txt" 
