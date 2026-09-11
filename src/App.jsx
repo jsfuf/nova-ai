@@ -145,6 +145,8 @@ export default function App({ updateNotice: initialUpdateNotice }){
   const [settingsTab,setSettingsTab]=useState("general")
   const [researchMode,setResearchMode]=useState(()=>{ try{ return localStorage.getItem(LS_RESEARCH)==="1" }catch{ return false } })
   const [attachedImage,setAttachedImage]=useState(null)
+  const [cameraOn,setCameraOn]=useState(false)
+  const [cameraError,setCameraError]=useState("")
   const [isRecording,setIsRecording]=useState(false)
   const [showPlus,setShowPlus]=useState(false)
   const [dragOver,setDragOver]=useState(false)
@@ -155,7 +157,7 @@ export default function App({ updateNotice: initialUpdateNotice }){
   const [deleteTarget,setDeleteTarget]=useState(null)
   const [copiedId,setCopiedId]=useState(null)
   const [attachedDoc,setAttachedDoc]=useState(null)
-  const abortRef=useRef(null), listRef=useRef(null), taRef=useRef(null), rafRef=useRef(null), streamFullRef=useRef(""), fileInputRef=useRef(null), recognitionRef=useRef(null), mediaRecorderRef=useRef(null), longPressRef=useRef(null)
+  const abortRef=useRef(null), listRef=useRef(null), taRef=useRef(null), rafRef=useRef(null), streamFullRef=useRef(""), fileInputRef=useRef(null), recognitionRef=useRef(null), mediaRecorderRef=useRef(null), longPressRef=useRef(null), videoRef=useRef(null), streamRef=useRef(null)
   const [conversationsLoading,setConversationsLoading]=useState(true)
   const activeConv=useMemo(()=>{ if(!conversations.length) return null; return conversations.find(c=>c.id===activeId)||conversations[0] },[conversations,activeId])
   const [updateToast,setUpdateToast]=useState(initialUpdateNotice ? "Updated" : "")
@@ -236,6 +238,31 @@ export default function App({ updateNotice: initialUpdateNotice }){
   useEffect(()=>{ if(!taRef.current) return; taRef.current.style.height="auto"; taRef.current.style.height=Math.min(taRef.current.scrollHeight,140)+"px" },[input])
   useEffect(()=>{ const onResize=()=> setIsMobile(window.innerWidth<768); onResize(); window.addEventListener("resize",onResize); return ()=> window.removeEventListener("resize",onResize) },[])
   useEffect(()=>{ if(isMobile) setSidebarOpen(false) },[isMobile])
+  useEffect(()=>{ return ()=>{ if(streamRef.current) streamRef.current.getTracks().forEach(t=> t.stop()) } },[])
+
+  const stopCamera=()=>{ if(streamRef.current){ streamRef.current.getTracks().forEach(t=> t.stop()); streamRef.current=null } }
+  const cancelCamera=()=>{ stopCamera(); setCameraOn(false); setCameraError(""); setShowPlus(false) }
+  const openCamera=async ()=>{
+    setShowPlus(false); setCameraError(""); setCameraOn(true)
+    try{
+      if(!navigator.mediaDevices?.getUserMedia){ setCameraError("Camera not supported on this device"); return }
+      const stream=await navigator.mediaDevices.getUserMedia({ video:{ facingMode:"environment" }, audio:false })
+      streamRef.current=stream
+      const v=videoRef.current
+      if(v){ v.srcObject=stream; try{ await v.play() }catch{} }
+    }catch{ setCameraError("Camera permission denied or unavailable") }
+  }
+  const capturePhoto=()=>{
+    const video=videoRef.current; if(!video) return
+    try{
+      const canvas=document.createElement("canvas")
+      canvas.width=video.videoWidth||1280; canvas.height=video.videoHeight||960
+      canvas.getContext("2d").drawImage(video,0,0,canvas.width,canvas.height)
+      const url=canvas.toDataURL("image/jpeg",0.85)
+      stopCamera(); setCameraOn(false); setCameraError("")
+      setAttachedImage({ name:"Camera photo", url })
+    }catch{ setCameraError("Could not capture photo") }
+  }
   useEffect(()=>{ if(!showPlus) return; const onDocClick=(e)=>{ const plusEl=document.getElementById("nova-plus-wrap"); const ta=taRef.current; if(plusEl && !plusEl.contains(e.target) && ta && !ta.contains(e.target)) setShowPlus(false) }; document.addEventListener("mousedown",onDocClick); return ()=> document.removeEventListener("mousedown",onDocClick) },[showPlus])
   useEffect(()=>{ const onClick=()=> setCtxMenu(null); if(ctxMenu) document.addEventListener("click",onClick); return ()=> document.removeEventListener("click",onClick) },[ctxMenu])
   // delegation for canvas copy buttons — copies the actual <code> text, not an attribute
@@ -691,10 +718,10 @@ export default function App({ updateNotice: initialUpdateNotice }){
              <button className="glass-button p-2 rounded-xl mt-4 ml-2" onClick={toggleSidebar} aria-label="Toggle sidebar">
                <LayoutPanelLeft className="w-5 h-5 text-gray-300" />
              </button>
-             <button className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-lg font-medium text-gray-200 mt-4">
-                Nova AI
-                <ChevronDown className="w-4 h-4 text-gray-400" />
-             </button>
+<button className="flex items-center gap-2 px-3 py-1.5 rounded-xl hover:bg-white/5 transition-colors text-lg font-medium text-gray-200 mt-4" onClick={()=>{ if(cameraOn) cancelCamera(); setShowPlus(false) }}>
+                 Nova AI
+                 <ChevronDown className="w-4 h-4 text-gray-400" />
+              </button>
           </div>
           <div className="flex items-center gap-2 mt-4">
             <button className="glass-button px-3 py-1.5 rounded-xl text-sm font-medium" onClick={createNewChat}>+ New</button>
@@ -779,6 +806,23 @@ export default function App({ updateNotice: initialUpdateNotice }){
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 flex justify-center z-30 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
+          {cameraOn && (
+            <div className="fixed bottom-[5.5rem] left-1/2 -translate-x-1/2 z-40 w-[340px] max-w-[92vw] pointer-events-auto">
+              <div className="glass-panel rounded-3xl p-3 flex flex-col gap-3 shadow-[0_8px_40px_rgba(0,0,0,0.6)]" onClick={e=> e.stopPropagation()}>
+                <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4] w-full">
+                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                  <button onClick={cancelCamera} className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm grid place-items-center text-sm text-white/80 hover:bg-black/70" aria-label="Back">✕</button>
+                  {cameraError && <div className="absolute inset-0 grid place-items-center text-sm text-gray-400 p-6 text-center bg-black/80">{cameraError}</div>}
+                </div>
+                <div className="flex items-center justify-center gap-6 pb-1">
+                  <button onClick={()=>{ stopCamera(); setCameraOn(false); setShowPlus(true) }} className="glass-button px-4 py-2 rounded-full text-xs text-gray-300">← Back</button>
+                  <button onClick={capturePhoto} className="w-14 h-14 rounded-full border-[3px] border-white/70 bg-white/10 flex items-center justify-center shrink-0 active:scale-95 transition-transform" aria-label="Take photo">
+                    <span className="w-10 h-10 rounded-full bg-white shrink-0" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="flex items-end gap-3 w-full max-w-3xl pointer-events-auto relative">
             {attachedImage && (
               <div className="absolute bottom-full mb-3 left-0 glass rounded-2xl px-3 py-2 flex items-center gap-3 max-w-full">
@@ -799,9 +843,10 @@ export default function App({ updateNotice: initialUpdateNotice }){
             <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} className="w-12 h-12 rounded-full glass flex items-center justify-center" onClick={()=> setShowPlus(true)} aria-label="Attach">
               <Plus className="w-5 h-5 text-gray-300" />
             </motion.button>
-              {showPlus && (
+{showPlus && (
                 <div className="plus-pop" onClick={e=> e.stopPropagation()}>
-                  <button type="button" onClick={()=> fileInputRef.current?.click()}>� Add file — image, PDF or Word</button>
+                  <button type="button" onClick={()=> fileInputRef.current?.click()}>📎 Add file — image, PDF or Word</button>
+                  <button type="button" onClick={openCamera}>📷 Camera</button>
                   <button type="button" onClick={()=> { setResearchMode(v=> !v); setShowPlus(false)}}>{researchMode?"🔍 Research: ON":"🔍 Enable research"}</button>
                   <button type="button" onClick={()=> { createNewChat(); setShowPlus(false)}}>＋ New chat</button>
                 </div>
