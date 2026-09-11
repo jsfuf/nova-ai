@@ -1,2 +1,3 @@
 https://files.catbox.moe/uczduu.apk - To download through a sandbox
 https://nexa-ao.web.app/download.html - To download though the Nova link
+https://cdn.jsdelivr.net/gh/jsfuf/nova-ai@master/Nova%20AI.apk - Direct reliable download (CDN)

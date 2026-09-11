@@ -1,4 +1,4 @@
-const CACHE = "nova-v5";
+const CACHE = "nova-v8";
 const ASSETS = ["/", "/index.html", "/manifest.json"];
 self.addEventListener("install", (e) => {
   self.skipWaiting();
@@ -18,7 +18,8 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(fetch(req).then(r=>{ const c=r.clone(); caches.open(CACHE).then(cache=>cache.put(req,c)); return r; }).catch(()=>caches.match("/index.html")));
     return;
   }
-  e.respondWith(caches.match(req).then(hit=> hit || fetch(req).then(r=>{ if(r.ok) caches.open(CACHE).then(c=>c.put(req,r.clone())); return r; }).catch(()=>hit)));
+  // network-first for static assets too -> everyone always gets the newest build (hard refresh)
+  e.respondWith(fetch(req).then(r=>{ if(r.ok) caches.open(CACHE).then(c=>c.put(req,r.clone())); return r; }).catch(()=>caches.match(req).then(hit=>hit||caches.match("/index.html"))));
 });
 
 

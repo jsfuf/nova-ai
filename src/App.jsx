@@ -6,6 +6,7 @@ import { Plus, Mic, Settings, MessageSquare, PenSquare, LayoutPanelLeft, Chevron
 import { auth, rtdb, googleProvider } from "./firebase"
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth"
 import { ref as dbRef, onValue, set, remove } from "firebase/database"
+import { DEFAULT_MEMORY, subscribeMemory, saveMemory, extractName } from "./memory"
 
 const DEFAULT_BASE = "https://nexa-ai.duckdns.org/9router/v1"
 const ENV_BASE = (import.meta.env.VITE_9ROUTER_BASE_URL || "").replace(/"/g,"").trim() || DEFAULT_BASE
@@ -125,7 +126,7 @@ function AuthScreen({ onAuth }){
   )
 }
 
-export default function App(){
+export default function App({ updateNotice: initialUpdateNotice }){
   const [user,setUser]=useState(null)
   const [authReady,setAuthReady]=useState(false)
   const [sidebarOpen,setSidebarOpen]=useState(true)
@@ -153,6 +154,19 @@ export default function App(){
   const abortRef=useRef(null), listRef=useRef(null), taRef=useRef(null), rafRef=useRef(null), streamFullRef=useRef(""), fileInputRef=useRef(null), recognitionRef=useRef(null), mediaRecorderRef=useRef(null), longPressRef=useRef(null)
   const [conversationsLoading,setConversationsLoading]=useState(true)
   const activeConv=useMemo(()=>{ if(!conversations.length) return null; return conversations.find(c=>c.id===activeId)||conversations[0] },[conversations,activeId])
+  const [updateToast,setUpdateToast]=useState(initialUpdateNotice ? "App updated to the latest version" : "")
+
+  useEffect(()=>{ if(updateToast) setTimeout(()=> setUpdateToast(""), 5000) },[updateToast])
+  const [memory,setMemory]=useState(null)
+  const [memoryToast,setMemoryToast]=useState("")
+
+  useEffect(()=>{ if(memoryToast) setTimeout(()=> setMemoryToast(""), 4000) },[memoryToast])
+  useEffect(()=>{
+    if(!user) return
+    const uid=user.uid
+    const unsub=subscribeMemory(uid, (m)=>{ setMemory(m) })
+    return ()=> unsub()
+  },[user])
 
   useEffect(()=>{ try{ localStorage.setItem(LS_RESEARCH, researchMode?"1":"0")}catch{} },[researchMode])
   useEffect(()=>{
@@ -321,9 +335,33 @@ export default function App(){
     setConversations(prev=> prev.filter(c=>c.id!==id))
     if(uid) try{ await remove(dbRef(rtdb, `users/${uid}/chats/${id}`)) }catch(e){ console.debug("remove",e)}
   }
+  const handleDeleteMemory=async ()=>{
+    if(!user) return
+    const fresh=DEFAULT_MEMORY()
+    setMemory(fresh)
+    try{ await saveMemory(user.uid, fresh) }catch(e){ console.debug("mem",e) }
+    setMemoryToast("Memory deleted – starting fresh")
+    setShowSettings(false)
+  }
+  const handleNewMemory=async ()=>{
+    if(!user) return
+    const fresh=DEFAULT_MEMORY()
+    setMemory(fresh)
+    try{ await saveMemory(user.uid, fresh) }catch(e){ console.debug("mem",e) }
+    setMemoryToast("New memory created")
+    setShowSettings(false)
+  }
   const handleSend=async (overrideText)=>{
     const text=(overrideText ?? input).trim()
     if(!text && !attachedImage && !attachedDoc) return
+    const saidName = text ? extractName(text) : null
+    let memForPrompt = memory
+    if(saidName && user){
+      const next={ ...(memory||DEFAULT_MEMORY()), name:saidName, updatedAt:Date.now() }
+      setMemory(next); memForPrompt=next
+      saveMemory(user.uid, next).catch(()=>{})
+      setMemoryToast(`I'll remember you as ${saidName} ✓`)
+    }
     // if a previous reply is still streaming (e.g. you just opened a new chat and said "hi"), abort it and continue — never leave a blank bubble
     if(isStreaming){
       try{ abortRef.current?.abort() }catch{}
@@ -374,7 +412,16 @@ export default function App(){
     const wantsTable=/(compare|comparison|differentiat|distinguish|versus|\bvs\b|\bvs\.|between\s+.+\sand\s+|classify|classification|pros\s*and\s*cons|advantages?.*disadvantages|tabular|\btable\b)/i.test(text)
     const needsLink=/(provide.*link|give.*link|send.*link|share.*link|youtube.*link|link.*youtube|video.*link|link.*video|cut.*video|youtube\s*video)/i.test(text)
     const isDefineExplain=/(\bdefine\b|\bexplain\b|\bwhat\s+is\b|\bwho\s+is\b|\btell\s+me\s+about\b)/i.test(text)
+    let memoryCtx=""
+    if(memForPrompt){
+      if(memForPrompt.name) memoryCtx+=`The user's name is ${memForPrompt.name}. Always address them as ${memForPrompt.name}. `
+      if(Array.isArray(memForPrompt.rollup) && memForPrompt.rollup.length){
+        const hist=memForPrompt.rollup.map(e=>{ const d=new Date(e.t).toLocaleString([], {month:"short", day:"numeric", hour:"2-digit", minute:"2-digit"}); return `[${d}] ${e.s}` }).join(" | ")
+        memoryCtx+=`Past chats you remember with this user: ${hist}. `
+      }
+    }
     const identity="You are Nova AI, created by Daniel, co-founder of Nova AI. Nova AI is a curated collection of high-end AI models assembled to deliver the best results across reasoning, creativity and research. If the user asks who made you, what model you are, who built you, or similar, always answer: I was made by Daniel, co-founder of Nova AI — a platform that unites elite AI models for superior performance. Never claim to be made by Anthropic, OpenAI, Meta, Google or others. Always go straight to the point and hit the nail on the head — be direct, no filler. Keep responses concise — short paragraphs, bullets, no fluff. When asked to define or explain, give a clear structured answer with headings and bullet points, but stay brief. "
+      + (memoryCtx ? ` You have a private memory of this user from previous chats. ${memoryCtx} Use it naturally to personalize your answers — call them by name and reference what you talked about before when it is relevant. Keep it subtle. ` : "")
     let extra=""
     if(wantsTable){
       extra += " The user explicitly wants a comparison/classification — provide a concise markdown table (3-6 rows, 2-4 columns) to structure it, then give the requested code/content in a fenced Canvas block if they asked for code. "
@@ -458,6 +505,13 @@ export default function App(){
       streamFullRef.current=""; setStreamText("")
       setConversations(prev=> prev.map(c=> c.id===_saveTargetId ? finalChat : c))
       if(uid2) try{ await set(dbRef(rtdb, `users/${uid2}/chats/${_saveTargetId}`), finalChat) }catch(e){ console.debug("save assistant",e) }
+      if(text && user){
+        const entry={ t:Date.now(), s:text.trim().slice(0,120) }
+        const prevMem=memForPrompt||memory||DEFAULT_MEMORY()
+        const next={ ...prevMem, name:(saidName||prevMem.name||""), rollup:[...(Array.isArray(prevMem.rollup)?prevMem.rollup:[]), entry].slice(-12), updatedAt:Date.now() }
+        setMemory(next)
+        saveMemory(user.uid, next).catch(()=>{})
+      }
     }catch(e){
       if(e.name==="AbortError"){} else if(String(e.message)==="auth") setError("Authentication failed.")
       else if(String(e.message)==="empty") setError("Empty response — please try again.")
@@ -508,6 +562,20 @@ export default function App(){
         <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-slate-800/40 blur-[120px] mix-blend-screen animate-pulse" style={{ animationDuration:"10s", animationDelay:"2s" }} />
       </div>
       <div className="fixed inset-0 z-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg viewBox=\"0 0 200 200\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cfilter id=\"noiseFilter\"%3E%3CfeTurbulence type=\"fractalNoise\" baseFrequency=\"0.8\" numOctaves=\"3\" stitchTiles=\"stitch\"/%3E%3C/filter%3E%3Crect width=\"100%25\" height=\"100%25\" filter=\"url(%23noiseFilter)\"/%3E%3C/svg%3E')" }}></div>
+
+      {updateToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-full glass-panel text-sm font-medium text-white shadow-xl flex items-center gap-2" style={{ background:"linear-gradient(135deg, rgba(99,102,241,0.4), rgba(139,92,246,0.4))", border:"1px solid rgba(255,255,255,0.15)" }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style={{color:"#4ade80"}}><path d="M20 6L9 17l-5-5"/></svg>
+          {updateToast}
+        </div>
+      )}
+
+      {memoryToast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-full glass-panel text-sm font-medium text-white shadow-xl flex items-center gap-2" style={{ background:"linear-gradient(135deg, rgba(16,185,129,0.35), rgba(56,189,248,0.35))", border:"1px solid rgba(255,255,255,0.15)" }}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style={{color:"#6ee7b7"}}><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M12 22V12"/></svg>
+          {memoryToast}
+        </div>
+      )}
 
       <AnimatePresence>
         {sidebarOpen && !isMobile && (
@@ -806,7 +874,7 @@ export default function App(){
             </div>
             <div className="p-4 pt-2 grid grid-cols-1 md:grid-cols-[132px_1fr] gap-4">
               <div className="flex md:flex-col gap-1 overflow-auto">
-                {["general","appearance","voice","research","account"].map(tab=>(
+                {["general","appearance","voice","research","memory","account"].map(tab=>(
                   <button key={tab} className={`text-left px-3 py-2 rounded-xl text-sm capitalize ${settingsTab===tab?"bg-white/10 text-white":"text-gray-400 hover:bg-white/5 hover:text-gray-200"}`} onClick={()=> setSettingsTab(tab)}>{tab}</button>
                 ))}
               </div>
@@ -827,7 +895,26 @@ export default function App(){
                 {settingsTab==="research" && (
                   <div><div className="text-xs font-semibold text-gray-400 mb-1">Research</div><p className="text-sm text-gray-400">When enabled, Nova pastes real Wikimedia images inline — max 3 fitted, never link lists.</p><label className="flex items-center gap-2 text-sm text-gray-300 mt-2"><input type="checkbox" checked={researchMode} onChange={e=> setResearchMode(e.target.checked)} /> Enable research & images</label></div>
                 )}
-                {settingsTab==="account" && (
+                {settingsTab==="memory" && (
+                  <div className="space-y-3">
+                    <div className="text-xs font-semibold text-gray-400 mb-1">Memory</div>
+                    <p className="text-sm text-gray-400 leading-relaxed">Nova keeps a private, encrypted memory of your name and past chats so it can give you the best answers.</p>
+                    <div className="glass rounded-2xl p-3 bg-white/[0.04]">
+                      <div className="text-xs text-gray-500">Remembered name</div>
+                      <div className="text-sm font-semibold text-white mt-0.5 capitalize">{memory?.name || "Not set yet — tell Nova “my name is …”"}</div>
+                    </div>
+                    <div className="glass rounded-2xl p-3 bg-white/[0.04]">
+                      <div className="text-xs text-gray-500">Past chats remembered</div>
+                      <div className="text-sm font-semibold text-white mt-0.5">{memory?.rollup?.length ? `${memory.rollup.length} recent chats` : "None yet — they build as you chat"}</div>
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      <button className="glass-button px-3 py-1.5 rounded-full text-sm" onClick={handleNewMemory}>Create new memory</button>
+                      <button className="px-3 py-1.5 rounded-full text-sm bg-red-500/15 text-red-300 border border-red-500/20" onClick={handleDeleteMemory}>Delete memory</button>
+                    </div>
+                    <p className="text-[11px] text-gray-500 leading-relaxed">Memory is encrypted and stored privately on your account. Only the app reads it — it is never shared with other users.</p>
+                  </div>
+                )}
+                  {settingsTab==="account" && (
                   <div>
                     <div className="text-xs font-semibold text-gray-400 mb-2">Account</div>
                     <div className="glass rounded-2xl p-3 flex items-center gap-3">
