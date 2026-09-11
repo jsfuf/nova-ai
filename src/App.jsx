@@ -66,6 +66,8 @@ const downloadGenerated=async (url)=>{
     document.body.appendChild(a); a.click(); a.remove()
   }
 }
+const POPUP_LIST_VAR={ hidden:{opacity:0, scale:0.85, y:10, filter:"blur(4px)"}, show:{opacity:1, scale:1, y:0, filter:"blur(0px)", transition:{type:"spring", bounce:0.25, duration:0.4, staggerChildren:0.05, delayChildren:0.03}}, hide:{opacity:0, scale:0.9, y:8, filter:"blur(3px)", transition:{duration:0.18, staggerChildren:0.03, staggerDirection:-1}} }
+const POPUP_ITEM_VAR={ hidden:{opacity:0, x:-8}, show:{opacity:1, x:0}, hide:{opacity:0, x:-6} }
 
 function shortTitle(t){ const s=t.trim().replace(/\s+/g," "); if(!s) return "New chat"; if(s.length<=42) return s; const sl=s.slice(0,42); const ls=sl.lastIndexOf(" "); return (ls>18? sl.slice(0,ls):sl)+"..." }
 function newId(){ return Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4) }
@@ -939,8 +941,10 @@ export default function App({ updateNotice: initialUpdateNotice }){
             )}
             </AnimatePresence>
 <div id="nova-plus-wrap" className="relative shrink-0 mb-1">
-            <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} className="w-12 h-12 rounded-full glass flex items-center justify-center" onClick={()=> setShowPlus(true)} aria-label="Attach">
-              <Plus className="w-5 h-5 text-gray-300" />
+            <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} className="w-12 h-12 rounded-full glass flex items-center justify-center" onClick={()=> setShowPlus(v=> !v)} aria-label={showPlus?"Close attach menu":"Attach"}>
+              <motion.span animate={{rotate: showPlus?45:0}} transition={{type:"spring", bounce:0.3, duration:0.35}} className="flex" style={{filter:showPlus?"drop-shadow(0 0 6px rgba(139,92,246,0.6))":"none"}}>
+                <Plus className="w-5 h-5 text-gray-300" />
+              </motion.span>
             </motion.button>
               <AnimatePresence>
               {cameraOn && (
@@ -971,14 +975,11 @@ export default function App({ updateNotice: initialUpdateNotice }){
               <AnimatePresence>
               {showPlus && (
                 <motion.div className="plus-pop" onClick={e=> e.stopPropagation()}
-                  initial={{opacity:0, scale:0.9, y:8}}
-                  animate={{opacity:1, scale:1, y:0}}
-                  exit={{opacity:0, scale:0.86, y:6}}
-                  transition={{type:"spring", bounce:0.22, duration:0.3}}>
-                  <button type="button" onClick={()=> fileInputRef.current?.click()}>📎 Add file — image, PDF or Word</button>
-                  <button type="button" onClick={openCamera}>📷 Camera</button>
-                  <button type="button" onClick={()=> { setResearchMode(v=> !v); setShowPlus(false)}}>{researchMode?"🔍 Research: ON":"🔍 Enable research"}</button>
-                  <button type="button" onClick={()=> { createNewChat(); setShowPlus(false)}}>＋ New chat</button>
+                  variants={POPUP_LIST_VAR} initial="hidden" animate="show" exit="hide">
+                  <motion.button variants={POPUP_ITEM_VAR} type="button" onClick={()=> fileInputRef.current?.click()}>📎 Add file — image, PDF or Word</motion.button>
+                  <motion.button variants={POPUP_ITEM_VAR} type="button" onClick={openCamera}>📷 Camera</motion.button>
+                  <motion.button variants={POPUP_ITEM_VAR} type="button" onClick={()=> { setResearchMode(v=> !v); setShowPlus(false)}}>{researchMode?"🔍 Research: ON":"🔍 Enable research"}</motion.button>
+                  <motion.button variants={POPUP_ITEM_VAR} type="button" onClick={()=> { createNewChat(); setShowPlus(false)}}>＋ New chat</motion.button>
                 </motion.div>
               )}
             </AnimatePresence>
