@@ -147,6 +147,7 @@ export default function App({ updateNotice: initialUpdateNotice }){
   const [attachedImage,setAttachedImage]=useState(null)
   const [cameraOn,setCameraOn]=useState(false)
   const [cameraError,setCameraError]=useState("")
+  const [cameraFlash,setCameraFlash]=useState(false)
   const [isRecording,setIsRecording]=useState(false)
   const [showPlus,setShowPlus]=useState(false)
   const [dragOver,setDragOver]=useState(false)
@@ -259,8 +260,11 @@ export default function App({ updateNotice: initialUpdateNotice }){
       canvas.width=video.videoWidth||1280; canvas.height=video.videoHeight||960
       canvas.getContext("2d").drawImage(video,0,0,canvas.width,canvas.height)
       const url=canvas.toDataURL("image/jpeg",0.85)
-      stopCamera(); setCameraOn(false); setCameraError("")
-      setAttachedImage({ name:"Camera", url })
+      setCameraFlash(true)
+      setTimeout(()=>{
+        stopCamera(); setCameraOn(false); setCameraError(""); setCameraFlash(false)
+        setAttachedImage({ name:"Camera", url })
+      }, 220)
     }catch{ setCameraError("Could not capture photo") }
   }
   useEffect(()=>{ if(!showPlus) return; const onDocClick=(e)=>{ const plusEl=document.getElementById("nova-plus-wrap"); const ta=taRef.current; if(plusEl && !plusEl.contains(e.target) && ta && !ta.contains(e.target)) setShowPlus(false) }; document.addEventListener("mousedown",onDocClick); return ()=> document.removeEventListener("mousedown",onDocClick) },[showPlus])
@@ -807,32 +811,54 @@ export default function App({ updateNotice: initialUpdateNotice }){
 
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 flex justify-center z-30 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
           <div className="flex items-end gap-3 w-full max-w-3xl pointer-events-auto relative">
+            <AnimatePresence>
             {attachedImage && (
-              <div className="absolute bottom-full mb-3 left-0 flex flex-col items-start gap-1 max-w-full pointer-events-auto">
+              <motion.div className="absolute bottom-full mb-3 left-0 flex flex-col items-start gap-1 max-w-full pointer-events-auto"
+                initial={{opacity:0, y:16, scale:0.7}}
+                animate={{opacity:1, y:0, scale:1}}
+                exit={{opacity:0, y:12, scale:0.75}}
+                transition={{type:"spring", bounce:0.35, duration:0.45}}>
                 <div className="relative">
                   <img src={attachedImage.url} alt="Preview" className="w-16 h-16 rounded-xl object-cover" />
                   <button onClick={()=> setAttachedImage(null)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 grid place-items-center text-[10px] text-white shadow-md leading-none" aria-label="Remove">✕</button>
                 </div>
                 <span className="text-[10px] text-gray-400 truncate max-w-[72px]">{attachedImage.name}</span>
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
+            <AnimatePresence>
             {attachedDoc && (
-              <div className="absolute bottom-full mb-3 left-0 flex items-center gap-2">
+              <motion.div className="absolute bottom-full mb-3 left-0 flex items-center gap-2"
+                initial={{opacity:0, y:16, scale:0.85}}
+                animate={{opacity:1, y:0, scale:1}}
+                exit={{opacity:0, y:12, scale:0.8}}
+                transition={{type:"spring", bounce:0.3, duration:0.4}}>
                 <div className="w-8 h-8 rounded-lg bg-white/10 border border-white/10 grid place-items-center">
                   <span className="text-[9px] font-bold text-gray-300 uppercase">{attachedDoc.kind}</span>
                 </div>
                 <button className="mini-btn" onClick={()=> setAttachedDoc(null)}>Remove</button>
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
 <div id="nova-plus-wrap" className="relative shrink-0 mb-1">
             <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} className="w-12 h-12 rounded-full glass flex items-center justify-center" onClick={()=> setShowPlus(true)} aria-label="Attach">
               <Plus className="w-5 h-5 text-gray-300" />
             </motion.button>
+              <AnimatePresence>
               {cameraOn && (
-                <div className="camera-pop" onClick={e=> e.stopPropagation()}>
+                <motion.div className="camera-pop" onClick={e=> e.stopPropagation()}
+                  initial={{opacity:0, scale:0.8, y:10}}
+                  animate={{opacity:1, scale:1, y:0}}
+                  exit={{opacity:0, scale:0.82, y:8}}
+                  transition={{type:"spring", bounce:0.3, duration:0.4}}>
                   <div className="relative rounded-[14px] overflow-hidden bg-black aspect-square w-full">
                     <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
                     <button onClick={cancelCamera} className="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm grid place-items-center text-[11px] text-white/80 hover:bg-black/70" aria-label="Back">✕</button>
+                    <AnimatePresence>
+                      {cameraFlash && (
+                        <motion.div className="absolute inset-0 bg-white pointer-events-none z-10" initial={{opacity:0.95}} exit={{opacity:0}} transition={{duration:0.24}} />
+                      )}
+                    </AnimatePresence>
                     {cameraError && <div className="absolute inset-0 grid place-items-center text-[11px] text-gray-400 p-3 text-center bg-black/80">{cameraError}</div>}
                   </div>
                   <div className="flex items-center justify-center gap-5 py-1.5">
@@ -841,16 +867,23 @@ export default function App({ updateNotice: initialUpdateNotice }){
                       <span className="w-8 h-8 rounded-full bg-white shrink-0" />
                     </button>
                   </div>
-                </div>
+                </motion.div>
               )}
+            </AnimatePresence>
+              <AnimatePresence>
               {showPlus && (
-                <div className="plus-pop" onClick={e=> e.stopPropagation()}>
+                <motion.div className="plus-pop" onClick={e=> e.stopPropagation()}
+                  initial={{opacity:0, scale:0.9, y:8}}
+                  animate={{opacity:1, scale:1, y:0}}
+                  exit={{opacity:0, scale:0.86, y:6}}
+                  transition={{type:"spring", bounce:0.22, duration:0.3}}>
                   <button type="button" onClick={()=> fileInputRef.current?.click()}>📎 Add file — image, PDF or Word</button>
                   <button type="button" onClick={openCamera}>📷 Camera</button>
                   <button type="button" onClick={()=> { setResearchMode(v=> !v); setShowPlus(false)}}>{researchMode?"🔍 Research: ON":"🔍 Enable research"}</button>
                   <button type="button" onClick={()=> { createNewChat(); setShowPlus(false)}}>＋ New chat</button>
-                </div>
+                </motion.div>
               )}
+            </AnimatePresence>
             </div>
             <motion.div layout className="flex-1 glass rounded-3xl flex flex-col relative min-h-[56px]">
               <textarea 
