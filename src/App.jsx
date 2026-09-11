@@ -2,7 +2,7 @@
 import { marked } from "marked"
 import DOMPurify from "dompurify"
 import { motion, AnimatePresence } from "motion/react"
-import { Plus, Mic, Settings, MessageSquare, PenSquare, LayoutPanelLeft, ChevronDown, Sparkles, User, Send, Pencil, Trash2, X, LogOut, Copy, Check, FileText } from "lucide-react"
+import { Plus, Mic, Settings, MessageSquare, PenSquare, LayoutPanelLeft, ChevronDown, Sparkles, User, Send, Pencil, Trash2, X, LogOut, Copy, Check, FileText, ImagePlus, SunDim, Volume2 } from "lucide-react"
 import { auth, rtdb, googleProvider } from "./firebase"
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth"
 import { ref as dbRef, onValue, set, remove } from "firebase/database"
@@ -12,6 +12,23 @@ const DEFAULT_BASE = "https://nexa-ai.duckdns.org/9router/v1"
 const ENV_BASE = (import.meta.env.VITE_9ROUTER_BASE_URL || "").replace(/"/g,"").trim() || DEFAULT_BASE
 const ENV_KEY = (import.meta.env.VITE_9ROUTER_API_KEY || "").replace(/"/g,"").trim()
 const LS_RESEARCH = "nova_research"
+const EMPTY_PROFILE={ bgImages:[], bgActiveUrl:"", bgBrightness:1 }
+const MAX_BG_IMAGES=5
+const compressImage=(file)=> new Promise((resolve,reject)=>{
+  const img=new Image()
+  const url=URL.createObjectURL(file)
+  img.onload=()=>{
+    const MAX=1400; let w=img.naturalWidth||img.width, h=img.naturalHeight||img.height
+    const scale=Math.min(1, MAX/Math.max(w,h)); w=Math.round(w*scale); h=Math.round(h*scale)
+    const c=document.createElement("canvas"); c.width=w; c.height=h
+    const ctx=c.getContext("2d"); if(!ctx){ reject(new Error("no canvas")); return }
+    ctx.drawImage(img,0,0,w,h)
+    try{ resolve(c.toDataURL("image/jpeg",0.82)) }catch(e){ reject(e) }
+    URL.revokeObjectURL(url)
+  }
+  img.onerror=(e)=>{ URL.revokeObjectURL(url); reject(e) }
+  img.src=url
+})
 const FALLBACK_MODELS = ["ollama/gpt-oss:120b","claude-sonnet-4-5","nvidia/minimaxai/minimax-m2.7"]
 const VISION_MODELS = ["claude-sonnet-4-5","ollama/gpt-oss:120b","nvidia/minimaxai/minimax-m2.7"]
 const LINK_MODELS = ["claude-sonnet-4-5","ollama/gpt-oss:120b","nvidia/minimaxai/minimax-m2.7"]
@@ -215,6 +232,11 @@ export default function App({ updateNotice: initialUpdateNotice }){
 
   useEffect(()=>{ if(updateToast) setTimeout(()=> setUpdateToast(""), 1500) },[updateToast])
   const [memory,setMemory]=useState(null)
+  const [profile,setProfile]=useState(EMPTY_PROFILE)
+  const [bgDraft,setBgDraft]=useState(null)
+  const [bgEditOpen,setBgEditOpen]=useState(false)
+  const [bgLimitMsg,setBgLimitMsg]=useState(false)
+  const bgInputRef=useRef(null)
 
   useEffect(()=>{
     if(!user) return
@@ -287,6 +309,16 @@ export default function App({ updateNotice: initialUpdateNotice }){
     return ()=> { try{ unsub() }catch{} }
   },[authReady, user])
   useEffect(()=>{ if(!taRef.current) return; taRef.current.style.height="auto"; taRef.current.style.height=Math.min(taRef.current.scrollHeight,140)+"px" },[input])
+  // — RTDB profile sync: users/{uid}/profile — background images + brightness
+  useEffect(()=>{
+    if(!authReady || !user){ setProfile(EMPTY_PROFILE); return }
+    const uid=user.uid
+    const unsub=onValue(dbRef(rtdb, `users/${uid}/profile`), (snap)=>{
+      const v=snap.val()||{}
+      setProfile({ bgImages:Array.isArray(v.bgImages)?v.bgImages:[], bgActiveUrl: typeof v.bgActiveUrl==="string"?v.bgActiveUrl:"", bgBrightness: typeof v.bgBrightness==="number"?v.bgBrightness:1 })
+    }, (err)=>{ console.warn("profile read",err) })
+    return ()=> { try{ unsub() }catch{} }
+  },[authReady, user])
   useEffect(()=>{ const onResize=()=> setIsMobile(window.innerWidth<768); onResize(); window.addEventListener("resize",onResize); return ()=> window.removeEventListener("resize",onResize) },[])
   useEffect(()=>{ if(isMobile) setSidebarOpen(false) },[isMobile])
   useEffect(()=>{ return ()=>{ if(streamRef.current) streamRef.current.getTracks().forEach(t=> t.stop()) } },[])
@@ -318,6 +350,35 @@ export default function App({ updateNotice: initialUpdateNotice }){
     }catch{ setCameraError("Could not capture photo") }
   }
   useEffect(()=>{ if(!showPlus) return; const onDocClick=(e)=>{ const plusEl=document.getElementById("nova-plus-wrap"); const ta=taRef.current; if(plusEl && !plusEl.contains(e.target) && ta && !ta.contains(e.target)) setShowPlus(false) }; document.addEventListener("mousedown",onDocClick); return ()=> document.removeEventListener("mousedown",onDocClick) },[showPlus])
+
+  // — background image picker (Appearance) —
+  useEffect(()=>{ if(settingsTab!=="appearance") return; setBgDraft({ images:[...(profile.bgImages||[])], activeUrl: profile.bgActiveUrl || (profile.bgImages||[])[0] || "", brightness: profile.bgBrightness||1 }); setBgEditOpen(false); setBgLimitMsg(false) },[settingsTab])
+  const importBgImage=async (e)=>{
+    const f=e.target.files?.[0]; e.target.value=""
+    if(!f || !bgDraft) return
+    if(bgDraft.images.length>=MAX_BG_IMAGES){ setBgLimitMsg(true); return }
+    try{
+      const url=await compressImage(f)
+      setBgDraft(d=> d ? ({ ...d, images:[...d.images, url], activeUrl: d.images.length===0 ? url : d.activeUrl }) : d)
+      setBgLimitMsg(false)
+    }catch(err){ console.warn("bg import",err) }
+  }
+  const deleteBgImage=(idx)=>{
+    setBgDraft(d=> {
+      if(!d) return d
+      const images=d.images.filter((_,i)=> i!==idx)
+      const activeUrl = d.activeUrl===d.images[idx] ? (images[0]||"") : d.activeUrl
+      setBgLimitMsg(false)
+      return { ...d, images, activeUrl }
+    })
+  }
+  const applyBgDone=async ()=>{
+    if(!user || !bgDraft) return
+    const next={ bgImages: bgDraft.images, bgActiveUrl: bgDraft.activeUrl||"", bgBrightness: Math.round((bgDraft.brightness||1)*100)/100 }
+    setProfile(next)
+    try{ await set(dbRef(rtdb, `users/${user.uid}/profile`), next) }catch(err){ console.warn("save profile",err) }
+    setShowSettings(false)
+  }
   useEffect(()=>{ const onClick=()=> setCtxMenu(null); if(ctxMenu) document.addEventListener("click",onClick); return ()=> document.removeEventListener("click",onClick) },[ctxMenu])
   // delegation for canvas copy buttons — copies the actual <code> text, not an attribute
   useEffect(()=>{
@@ -677,9 +738,23 @@ export default function App({ updateNotice: initialUpdateNotice }){
 
   return (
     <div className="flex h-screen w-full overflow-hidden text-gray-200 antialiased font-sans bg-black" onDragOver={e=>{ e.preventDefault(); setDragOver(true)}} onDragLeave={()=> setDragOver(false)} onDrop={e=>{ e.preventDefault(); setDragOver(false); if(e.dataTransfer.files?.length) handleFiles(e.dataTransfer.files)}}>
-      <div className="fixed inset-0 z-0 bg-black">
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-900/20 blur-[120px] mix-blend-screen animate-pulse" style={{ animationDuration:"8s" }} />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-slate-800/40 blur-[120px] mix-blend-screen animate-pulse" style={{ animationDuration:"10s", animationDelay:"2s" }} />
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <AnimatePresence mode="wait">
+          {profile.bgActiveUrl ? (
+            <motion.div key={profile.bgActiveUrl} className="absolute inset-0"
+              initial={{opacity:0, scale:1.04}} animate={{opacity:1, scale:1}} exit={{opacity:0}}
+              transition={{duration:0.8, ease:"easeOut"}}
+              style={{ backgroundImage:`url("${profile.bgActiveUrl}")`, backgroundSize:"cover", backgroundPosition:"center", filter:`brightness(${profile.bgBrightness||1})` }}
+            />
+          ) : (
+            <motion.div key="default" className="absolute inset-0 bg-black"
+              initial={{opacity:0}} animate={{opacity:1}} exit={{opacity:0}} transition={{duration:0.5}}>
+              <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-900/20 blur-[120px] mix-blend-screen animate-pulse" style={{ animationDuration:"8s" }} />
+              <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-slate-800/40 blur-[120px] mix-blend-screen animate-pulse" style={{ animationDuration:"10s", animationDelay:"2s" }} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+        {profile.bgActiveUrl && <div className="absolute inset-0 bg-black/35" />}
       </div>
       <div className="fixed inset-0 z-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg viewBox=\"0 0 200 200\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cfilter id=\"noiseFilter\"%3E%3CfeTurbulence type=\"fractalNoise\" baseFrequency=\"0.8\" numOctaves=\"3\" stitchTiles=\"stitch\"/%3E%3C/filter%3E%3Crect width=\"100%25\" height=\"100%25\" filter=\"url(%23noiseFilter)\"/%3E%3C/svg%3E')" }}></div>
 
@@ -1068,7 +1143,71 @@ export default function App({ updateNotice: initialUpdateNotice }){
                   </>
                 )}
                 {settingsTab==="appearance" && (
-                  <div><div className="text-xs font-semibold text-gray-400 mb-2">Theme</div><div className="grid grid-cols-2 gap-2"><div className="glass rounded-2xl p-3 border-white/10 bg-white/5"><div className="text-sm font-semibold text-white">0 Black</div><div className="text-xs text-gray-400">Pure #000 — active</div></div><div className="glass rounded-2xl p-3 opacity-60"><div className="text-sm font-semibold text-white">Glass Dark</div><div className="text-xs text-gray-400">Liquid glass</div></div></div></div>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <div className="text-xs font-semibold text-gray-400 mb-1">Background image</div>
+                        <p className="text-xs text-gray-500 leading-relaxed">Import a photo to become the chat background. Up to {MAX_BG_IMAGES} saved.</p>
+                      </div>
+                      <input ref={bgInputRef} type="file" accept="image/*" className="hidden" onChange={importBgImage} />
+                      <motion.button whileTap={{scale:0.94}} disabled={!bgDraft || bgDraft.images.length>=MAX_BG_IMAGES} className="glass-button px-3 py-2 rounded-full text-xs font-semibold flex items-center gap-1.5 shrink-0 disabled:opacity-45" onClick={()=> bgInputRef.current?.click()}>
+                        <ImagePlus className="w-3.5 h-3.5" /> Import image
+                      </motion.button>
+                    </div>
+                    {bgLimitMsg && (
+                      <div className="text-[11px] text-amber-300/90 bg-amber-400/10 border border-amber-300/20 rounded-xl px-3 py-2">
+                        You can save up to {MAX_BG_IMAGES} backgrounds — delete one to add another.
+                      </div>
+                    )}
+                    {bgDraft && (bgDraft.images.length===0 ? (
+                      <motion.div initial={{opacity:0,y:6}} animate={{opacity:1,y:0}} className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-5 text-center text-xs text-gray-500">
+                        No backgrounds yet — press <span className="text-gray-300 font-semibold">Import image</span> to pick a photo.
+                      </motion.div>
+                    ) : (
+                      <motion.div layout className="grid grid-cols-5 gap-2">
+                        {bgDraft.images.map((u,i)=>(
+                          <motion.div key={u} layout initial={{opacity:0, scale:0.7}} animate={{opacity:1, scale:1}} transition={{type:"spring", bounce:0.3, delay:i*0.04}}>
+                            <div className={`relative aspect-square rounded-xl overflow-hidden cursor-pointer border ${bgDraft.activeUrl===u?"border-white/50 ring-2 ring-white/20":"border-white/10"} transition-colors`} onClick={()=> setBgDraft(d=> d ? ({ ...d, activeUrl: u, }) : d)}>
+                              <img src={u} alt="" className="w-full h-full object-cover" loading="lazy" />
+                              {bgDraft.activeUrl===u && <div className="absolute top-1 left-1 w-4 h-4 rounded-full bg-white grid place-items-center"><Check className="w-3 h-3 text-black" /></div>}
+                              <button className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-black/55 backdrop-blur-sm grid place-items-center text-white/90 hover:bg-black/75" aria-label="Delete background" onClick={(e)=>{ e.stopPropagation(); deleteBgImage(i) }}><Trash2 className="w-3 h-3" /></button>
+                            </div>
+                          </motion.div>
+                        ))}
+                      </motion.div>
+                    ))}
+                    <AnimatePresence>
+                      {bgDraft && bgDraft.activeUrl && (
+                        <motion.div layout initial={{opacity:0, scale:0.95, y:10}} animate={{opacity:1, scale:1, y:0}} exit={{opacity:0, scale:0.96, y:6}} transition={{type:"spring", bounce:0.2, duration:0.4}} className="rounded-2xl overflow-hidden border border-white/10 bg-black/30">
+                          <div className="relative" style={{ aspectRatio:"16/9" }}>
+                            <motion.img src={bgDraft.activeUrl} alt="Background preview" className="absolute inset-0 w-full h-full object-cover" animate={{ filter:`brightness(${bgDraft.brightness||1})` }} transition={{duration:0.2}} />
+                            <div className="absolute inset-0 pointer-events-none" />
+                          </div>
+                          <div className="p-3 flex flex-col gap-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[11px] text-gray-400 font-semibold">Fine-tune brightness</span>
+                              <span className="text-[11px] text-gray-500">{Math.round(((bgDraft.brightness||1)-0.35)/1.65*100)}%</span>
+                            </div>
+                            <motion.button whileTap={{scale:0.96}} type="button" className={`self-start flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-[11px] font-semibold transition-colors ${bgEditOpen?"bg-white/15 text-white":"glass-button text-gray-300"}`} onClick={()=> setBgEditOpen(v=> !v)} style={{ boxShadow: bgEditOpen ? "0 0 0 1px rgba(255,255,255,0.18), 0 8px 24px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.2)" : undefined }}>
+                              <Volume2 className="w-3.5 h-3.5" />
+                              {bgEditOpen ? "Close brightness" : "Brightness"}
+                            </motion.button>
+                            <AnimatePresence>
+                              {bgEditOpen && (
+                                <motion.div initial={{opacity:0, height:0}} animate={{opacity:1, height:"auto"}} exit={{opacity:0, height:0}} transition={{type:"spring", bounce:0, duration:0.35}} className="overflow-hidden">
+                                  <div className="flex items-center gap-3 rounded-2xl px-3 py-2.5 border border-white/10 bg-white/[0.04] backdrop-blur-xl" style={{ boxShadow:"inset 0 1px 1px rgba(255,255,255,0.1)" }}>
+                                    <SunDim className="w-4 h-4 text-gray-400 shrink-0" />
+                                    <input type="range" min={0.35} max={2} step={0.01} value={bgDraft.brightness} onChange={e=> setBgDraft(d=> d ? ({ ...d, brightness: parseFloat(e.target.value) }) : d)} className="bg-slider flex-1" aria-label="Background brightness" />
+                                    <SunDim className="w-4 h-4 text-yellow-200/90 shrink-0" />
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 )}
                 {settingsTab==="voice" && (
                   <div><div className="text-xs font-semibold text-gray-400 mb-1">Voice input</div><p className="text-sm text-gray-400">Tap mic to speak — transcribed to composer. Never stored.</p><button className="mt-2 px-4 py-2 rounded-full bg-white text-black text-sm font-semibold" onClick={toggleVoice}>{isRecording?"Stop recording":"Test microphone"}</button></div>
@@ -1090,7 +1229,7 @@ export default function App({ updateNotice: initialUpdateNotice }){
             </div>
             <div className="flex justify-end gap-2 p-4 pt-0">
               <button className="glass-button px-4 py-2 rounded-full text-sm" onClick={()=> setShowSettings(false)}>Close</button>
-              <button className="px-4 py-2 rounded-full bg-white text-black text-sm font-semibold" onClick={()=> setShowSettings(false)}>Done</button>
+              <button className="px-4 py-2 rounded-full bg-white text-black text-sm font-semibold" onClick={()=>{ if(settingsTab==="appearance") applyBgDone(); else setShowSettings(false) }}>Done</button>
             </div>
           </div>
         </div>

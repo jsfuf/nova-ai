@@ -125,6 +125,12 @@ textarea:focus, textarea:focus-visible{ outline:none !important; box-shadow:none
 .primary-btn{ padding:8px 14px; border-radius:999px; border:none; background:#ffffff; color:#000000; font-weight:600; font-size:12.5px; cursor:pointer }
 .error-banner{ display:flex; align-items:center; gap:8px; background: rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.14); color:#fecaca; border-radius:14px; padding:10px 12px; font-size:12.5px; width:100%; margin-top:12px }
 .error-banner .err-icon{ width:22px; height:22px; display:grid; place-items:center; border-radius:50%; background: rgba(239,68,68,0.16); flex-shrink:0 }
+.bg-slider{ -webkit-appearance:none; appearance:none; height:8px; border-radius:9999px; background: rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.14); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); outline:none; box-shadow: inset 0 1px 2px rgba(0,0,0,0.35) }
+.bg-slider::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:22px; height:22px; border-radius:50%; background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(255,255,255,0.7)); border:1px solid rgba(255,255,255,0.5); box-shadow: 0 4px 14px rgba(0,0,0,0.45), inset 0 1px 1px rgba(255,255,255,0.7); cursor:pointer; transition: transform 150ms ease }
+.bg-slider::-webkit-slider-thumb:hover{ transform: scale(1.12) }
+.bg-slider::-webkit-slider-thumb:active{ transform: scale(1.2) }
+.bg-slider::-moz-range-thumb{ width:22px; height:22px; border-radius:50%; background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(255,255,255,0.7)); border:1px solid rgba(255,255,255,0.5); box-shadow: 0 4px 14px rgba(0,0,0,0.45), inset 0 1px 1px rgba(255,255,255,0.7); cursor:pointer }
+.bg-slider::-moz-range-track{ height:8px; border-radius:9999px; background: rgba(255,255,255,0.12); border:1px solid rgba(255,255,255,0.14) }
 @media (max-width: 860px){
   .nova-settings-grid{ grid-template-columns: 1fr } .nova-settings-nav{ flex-direction:row; overflow:auto }
 }

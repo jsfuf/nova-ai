@@ -1,4 +1,4 @@
-const CACHE = "nova-v15";
+const CACHE = "nova-v17";
 const ASSETS = ["/", "/index.html", "/manifest.json"];
 self.addEventListener("install", (e) => {
   self.skipWaiting();
