@@ -2,7 +2,7 @@
 import { marked } from "marked"
 import DOMPurify from "dompurify"
 import { motion, AnimatePresence } from "motion/react"
-import { Plus, Mic, Settings, MessageSquare, PenSquare, LayoutPanelLeft, ChevronDown, Sparkles, User, Send, Pencil, Trash2, X, LogOut, Copy, Check, FileText, ImagePlus, SunDim, Volume2 } from "lucide-react"
+import { Plus, Mic, Settings, MessageSquare, PenSquare, LayoutPanelLeft, ChevronDown, Sparkles, User, Send, Pencil, Trash2, X, LogOut, Copy, Check, FileText, ImagePlus, SunDim, Volume2, ArrowLeft, Waves } from "lucide-react"
 import { auth, rtdb, googleProvider } from "./firebase"
 import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, signOut } from "firebase/auth"
 import { ref as dbRef, onValue, set, remove } from "firebase/database"
@@ -30,6 +30,7 @@ const compressImage=(file)=> new Promise((resolve,reject)=>{
   img.src=url
 })
 const FALLBACK_MODELS = ["ollama/gpt-oss:120b","claude-sonnet-4-5","nvidia/minimaxai/minimax-m2.7"]
+const VOICE_MODELS = ["claude-sonnet-4-5","ollama/gpt-oss:120b","nvidia/minimaxai/minimax-m2.7"]
 const VISION_MODELS = ["claude-sonnet-4-5","ollama/gpt-oss:120b","nvidia/minimaxai/minimax-m2.7"]
 const LINK_MODELS = ["claude-sonnet-4-5","ollama/gpt-oss:120b","nvidia/minimaxai/minimax-m2.7"]
 const CHAT_SEARCH_RE = /(?:have i|have we|had i|did i|did we|do i|have you|have u|do you|do u)\b[\s\S]{0,50}\b(?:chat|chats|chatted|talk|talked|ask|asked|mention|mentioned|say|said|discuss|discussed|conversation|conversations|history|message)\b[\s\S]{0,30}\b(?:about|on|with|regarding|talking)\b/i
@@ -219,6 +220,8 @@ export default function App({ updateNotice: initialUpdateNotice }){
   const [cameraFlash,setCameraFlash]=useState(false)
   const [isGenImage,setIsGenImage]=useState(false)
   const [isRecording,setIsRecording]=useState(false)
+  const [voiceMode,setVoiceMode]=useState(false)
+  const [voiceSpeaking,setVoiceSpeaking]=useState(false)
   const [showPlus,setShowPlus]=useState(false)
   const [dragOver,setDragOver]=useState(false)
   const [isMobile,setIsMobile]=useState(false)
@@ -228,7 +231,7 @@ export default function App({ updateNotice: initialUpdateNotice }){
   const [deleteTarget,setDeleteTarget]=useState(null)
   const [copiedId,setCopiedId]=useState(null)
   const [attachedDoc,setAttachedDoc]=useState(null)
-  const abortRef=useRef(null), listRef=useRef(null), taRef=useRef(null), rafRef=useRef(null), streamFullRef=useRef(""), fileInputRef=useRef(null), recognitionRef=useRef(null), mediaRecorderRef=useRef(null), longPressRef=useRef(null), videoRef=useRef(null), streamRef=useRef(null)
+  const abortRef=useRef(null), listRef=useRef(null), taRef=useRef(null), rafRef=useRef(null), streamFullRef=useRef(""), fileInputRef=useRef(null), recognitionRef=useRef(null), mediaRecorderRef=useRef(null), longPressRef=useRef(null), videoRef=useRef(null), streamRef=useRef(null), voiceActiveRef=useRef(false), voiceRecRef=useRef(null), voiceDraftRef=useRef(""), voiceBusyRef=useRef(false), lastSpokenRef=useRef(new Set())
   const [conversationsLoading,setConversationsLoading]=useState(true)
   const activeConv=useMemo(()=>{ if(!conversations.length) return null; return conversations.find(c=>c.id===activeId)||conversations[0] },[conversations,activeId])
   const [updateToast,setUpdateToast]=useState(initialUpdateNotice ? "Updated" : "")
@@ -261,6 +264,18 @@ export default function App({ updateNotice: initialUpdateNotice }){
       rec.onend=()=> setIsRecording(false); rec.onerror=()=> setIsRecording(false); recognitionRef.current=rec
     }
   },[])
+  useEffect(()=>{
+    if(!voiceActiveRef.current || !activeConv) return
+    const msgs=activeConv.messages||[]
+    if(!msgs.length || isStreaming) return
+    const last=msgs[msgs.length-1]
+    if(!last || last.role!=="assistant") return
+    if(lastSpokenRef.current.has(last.id)) return
+    lastSpokenRef.current.add(last.id)
+    const speak=(last.content||"").trim()
+    if(speak){ setTimeout(()=>{ if(voiceActiveRef.current) speakText(speak) },200) }
+    else { voiceBusyRef.current=false; setTimeout(()=>{ if(voiceActiveRef.current) startVoiceListen() },400) }
+  },[activeConv, isStreaming])
   // — RTDB per-user sync: users/{uid}/chats — source of truth, keep pending local chats to avoid blank on "hi"
   useEffect(()=>{
     if(!authReady) return
@@ -621,9 +636,11 @@ export default function App({ updateNotice: initialUpdateNotice }){
     }
     if(isDefineExplain) extra += " This is a define/explain request — be thorough, structured and include images via the app (do not paste image URLs yourself). "
     extra += " For any code request (HTML etc.) output a complete runnable snippet in a single fenced block with language tag (e.g. ```html) — it will render as a glass Canvas with Copy. Keep explanation outside the code block. "
+    if(voiceActiveRef.current) extra += " You are talking to the user live by VOICE — reply as natural spoken conversation: short sentences, casual friendly tone, absolutely no markdown tables or fences, no bullet-point dumps, no URLs. Speak like a warm human assistant out loud. "
     const systemInstruction=identity + extra
     let modelsToTry
-    if(hasImage) modelsToTry=VISION_MODELS
+    if(voiceActiveRef.current) modelsToTry=VOICE_MODELS
+    else if(hasImage) modelsToTry=VISION_MODELS
     else if(needsLink) modelsToTry=LINK_MODELS
     else modelsToTry=FALLBACK_MODELS
     const tryStreamWithModel=async (modelId)=>{
@@ -712,6 +729,68 @@ export default function App({ updateNotice: initialUpdateNotice }){
       mr.onstart=()=> setIsRecording(true); mr.onstop=()=>{ setIsRecording(false); stream.getTracks().forEach(t=> t.stop()) }; mr.start()
       setTimeout(()=>{ if(mr.state==="recording") mr.stop() },8000)
     }catch{ setError("Microphone permission denied.") }
+  }
+  const cleanForSpeech=(s)=> s.replace(/```[\s\S]*?```/g," ").replace(/[#*`|>\[\]]/g,"").replace(/\s+/g," ").trim().slice(0,1200)
+  const speakText=(text)=>{
+    if(!voiceActiveRef.current) return
+    const synth=window.speechSynthesis
+    if(!synth) return
+    synth.cancel()
+    const cleaned=cleanForSpeech(text)
+    if(!cleaned){ setVoiceSpeaking(false); restartVoiceListen(); return }
+    const u=new SpeechSynthesisUtterance(cleaned)
+    u.lang="en-US"; u.rate=1.04; u.pitch=1
+    try{ const voices=synth.getVoices(); const v=voices.find(v=>/en.US|en.US.Samantha|en.US.Aria|en.US.Jenny|Google US/i.test(v.name||"")) || voices.find(v=>v.lang?.includes("en")); if(v) u.voice=v }catch{}
+    voiceBusyRef.current=false
+    setVoiceSpeaking(true)
+    u.onend=()=>{ setVoiceSpeaking(false); if(voiceActiveRef.current) restartVoiceListen() }
+    u.onerror=()=>{ setVoiceSpeaking(false); if(voiceActiveRef.current) restartVoiceListen() }
+    synth.speak(u)
+  }
+  const startVoiceListen=()=>{
+    if(!voiceActiveRef.current || voiceBusyRef.current) return
+    try{ voiceRecRef.current?.stop() }catch{}
+    const SR=window.SpeechRecognition||window.webkitSpeechRecognition
+    if(!SR) return
+    const rec=new SR()
+    rec.continuous=false; rec.interimResults=false; rec.lang="en-US"
+    rec.onresult=(e)=>{
+      let t=""
+      for(let i=0;i<e.results.length;i++) t+=e.results[i][0].transcript
+      voiceDraftRef.current=t
+    }
+    rec.onend=()=>{
+      if(!voiceActiveRef.current) return
+      const draft=voiceDraftRef.current?.trim()||""
+      voiceDraftRef.current=""
+      if(draft){
+        voiceBusyRef.current=true
+        handleSend(draft)
+      } else {
+        setTimeout(()=>{ if(voiceActiveRef.current) startVoiceListen() },600)
+      }
+    }
+    rec.onerror=()=>{
+      if(voiceActiveRef.current) setTimeout(()=>{ if(voiceActiveRef.current && !voiceBusyRef.current) startVoiceListen() },900)
+    }
+    voiceRecRef.current=rec
+    try{ rec.start() }catch{ setTimeout(()=>{ if(voiceActiveRef.current) startVoiceListen() },600) }
+  }
+  const restartVoiceListen=()=>{
+    if(!voiceActiveRef.current || voiceBusyRef.current) return
+    setTimeout(()=>{ if(voiceActiveRef.current && !voiceBusyRef.current) startVoiceListen() },350)
+  }
+  const startVoiceMode=()=>{
+    if(voiceMode) return
+    setVoiceMode(true); voiceActiveRef.current=true; voiceBusyRef.current=false; voiceDraftRef.current=""
+    lastSpokenRef.current=new Set((activeConv?.messages||[]).map(m=>m.id))
+    setTimeout(()=>{ if(voiceActiveRef.current) startVoiceListen() },400)
+  }
+  const stopVoiceMode=()=>{
+    voiceActiveRef.current=false; voiceBusyRef.current=false; voiceDraftRef.current=""
+    try{ voiceRecRef.current?.stop() }catch{}
+    try{ window.speechSynthesis?.cancel() }catch{}
+    setVoiceMode(false); setVoiceSpeaking(false)
   }
   const hasMessages=(activeConv?.messages.length||0)>0
   const toggleSidebar=()=> setSidebarOpen(v=> !v)
@@ -882,8 +961,11 @@ export default function App({ updateNotice: initialUpdateNotice }){
                  <ChevronDown className="w-4 h-4 text-gray-400" />
               </button>
           </div>
-          <div className="flex items-center gap-2 mt-4">
+          <div className="flex flex-col items-end gap-2 mt-4">
             <button className="glass-button px-3 py-1.5 rounded-xl text-sm font-medium" onClick={createNewChat}>+ New</button>
+            <button className="w-9 h-9 rounded-full grid place-items-center bg-gradient-to-tr from-emerald-500 to-green-600 shadow-lg shadow-emerald-500/30 transition-transform hover:scale-105 active:scale-95" onClick={startVoiceMode} title="Talk to Nova" aria-label="Talk to Nova">
+              <Waves className="w-4.5 h-4.5 text-white" />
+            </button>
           </div>
         </header>
 
