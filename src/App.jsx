@@ -19,6 +19,53 @@ const CHAT_SEARCH_RE = /(?:have i|have we|had i|did i|did we|do i|have you|have 
 const CHAT_SEARCH_RE2 = /\b(?:find|search|go through|look (?:up|for|through)|show me|check)\b[\s\S]{0,40}\b(?:chat|chats|conversation|conversations|history|messages?|talk|talked)\b/i
 const STOPWORDS=new Set(["the","and","for","are","that","this","have","has","had","was","were","will","with","about","from","they","you","your","them","what","when","where","which","there","their","would","could","should","been","being","please","tell","show","find","search","look","any","chat","chats","conversation","conversations","chatting","talk","talked","talking","made","make","i","we","me","my","our","us","a","an","to","of","in","on","at","do","did","does","not","just","very","like","really","phone","phones"])
 const tokensFrom=(s)=>{ const raw=[...new Set((s||"").toLowerCase().replace(/[^a-z0-9'\s-]/g," ").split(/\s+/))]; return raw.filter(w=> w.length>=3 && !STOPWORDS.has(w)) }
+const IMAGE_MODELS=["openai/gpt-image-1","google/imagen-3.0-fast-001","google/imagen-3.0-generate-002","black-forest-labs/flux-1.1-pro","blackforestlabs/flux-1.1-pro","openai/dall-e-3","stabilityai/stable-image-ultra","google/gemini-2.5-flash-image"]
+const IMG_GEN_RE=/(?:^|[\s,.;!?])(?:generate|create|make|draw|produce|render|paint)\s+(?:(?:me|us|my)\s+)?(?:an?\s+|a\s+)?(?:image|picture|pic|photo|drawing|art|artwork|wallpaper|avatar|logo|illustration|sketch|meme)\s+/i
+const IMG_GEN_RE2=/(?:generate|create|make|draw|produce|render|paint)\b[\s\S]{0,35}\b(?:image|picture|pic|photo|drawing|art|artwork|wallpaper|avatar|logo|illustration)\b/i
+const b64ToDataUrl=(b64, type)=>{ const base64=(b64||"").replace(/\s+/g,""); return "data:"+((type||"image/png").startsWith("image/")?type:"image/png")+";base64,"+base64 }
+const buildGenPrompt=(text)=>{
+  let p=(text||"").replace(/\s+/g," ").trim()
+  const m=p.match(/\b(?:generate|create|make|draw|produce|render|paint)\b([\s\S]*)$/i)
+  if(m) p=m[1]
+  p=p.replace(/^(?:me |us |my )+/i,"").replace(/^(?:an?|a|an|some|the)\s+/i,"")
+  p=p.replace(/\s+(?:image|picture|pic|photo|drawing|art|artwork|wallpaper|avatar|logo|illustration|sketch|meme)$/i,"")
+  p=p.replace(/^(?:image|picture|pic|photo|drawing|art|artwork|illustration)\s+(?:of|for|about|with)\s+/i,"")
+  p=p.replace(/^(?:an?|a|an|some|the)\s+/i,"")
+  return (p.trim() || "a beautiful scene").slice(0,300)
+}
+const generateImageNow=async (text, base, key)=>{
+  const prompt=buildGenPrompt(text)
+  const shuffled=[...IMAGE_MODELS].sort(()=> Math.random()-0.5)
+  for(const model of shuffled){
+    try{
+      const res=await fetch(`${base}/images/generations`,{ method:"POST", headers:{ "Content-Type":"application/json","Authorization":`Bearer ${key}` }, body:JSON.stringify({ model, prompt, n:1 }) })
+      if(!res.ok){ if(res.status===401||res.status===403) return { ok:false, blocked:true }; continue }
+      const j=await res.json()
+      const d=j?.data?.[0]||j?.images?.[0]||(Array.isArray(j?.output)?j.output[0]:null)||{}
+      let url=d?.url||j?.url||null
+      if(!url && d?.b64_json) url=b64ToDataUrl(d.b64_json, d?.media_type||j?.media_type||"image/png")
+      else if(!url && j?.b64_json) url=b64ToDataUrl(j.b64_json, j?.media_type||"image/png")
+      if(!url) continue
+      return { ok:true, url, prompt }
+    }catch{ continue }
+  }
+  return { ok:false }
+}
+const downloadGenerated=async (url)=>{
+  try{
+    const res=await fetch(url)
+    const blob=await res.blob()
+    const blobUrl=URL.createObjectURL(blob)
+    const a=document.createElement("a")
+    a.href=blobUrl; a.download="nova-ai-image.jpg"
+    document.body.appendChild(a); a.click(); a.remove()
+    setTimeout(()=> URL.revokeObjectURL(blobUrl), 2000)
+  }catch{
+    const a=document.createElement("a")
+    a.href=url; a.download="nova-ai-image"; a.target="_blank"; a.rel="noopener"
+    document.body.appendChild(a); a.click(); a.remove()
+  }
+}
 
 function shortTitle(t){ const s=t.trim().replace(/\s+/g," "); if(!s) return "New chat"; if(s.length<=42) return s; const sl=s.slice(0,42); const ls=sl.lastIndexOf(" "); return (ls>18? sl.slice(0,ls):sl)+"..." }
 function newId(){ return Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4) }
@@ -148,6 +195,7 @@ export default function App({ updateNotice: initialUpdateNotice }){
   const [cameraOn,setCameraOn]=useState(false)
   const [cameraError,setCameraError]=useState("")
   const [cameraFlash,setCameraFlash]=useState(false)
+  const [isGenImage,setIsGenImage]=useState(false)
   const [isRecording,setIsRecording]=useState(false)
   const [showPlus,setShowPlus]=useState(false)
   const [dragOver,setDragOver]=useState(false)
@@ -292,7 +340,7 @@ export default function App({ updateNotice: initialUpdateNotice }){
       setCopiedId(id); setTimeout(()=> setCopiedId(c=> c===id? null : c), 1400)
     }).catch(()=>{})
   }
-  useEffect(()=>{ if(listRef.current) listRef.current.scrollTop=listRef.current.scrollHeight },[activeConv?.messages, streamText, showLoader])
+  useEffect(()=>{ if(listRef.current) listRef.current.scrollTop=listRef.current.scrollHeight },[activeConv?.messages, streamText, showLoader, isGenImage])
   const handleFiles=useCallback(async (files)=>{
     const f=files[0]; if(!f) return
     if(f.size>10*1024*1024){ setError("File must be under 10MB"); return }
@@ -438,6 +486,33 @@ export default function App({ updateNotice: initialUpdateNotice }){
       setConversations(prev=> prev.map(c=> c.id===targetChatId? updatedUserChat: c))
       if(!activeId) setActiveId(targetChatId)
       if(uid) try{ await set(dbRef(rtdb, `users/${uid}/chats/${targetChatId}`), updatedUserChat) }catch(e){ console.debug("save user msg",e)}
+    }
+
+    const genImageIntent = text ? (IMG_GEN_RE.test(text)||IMG_GEN_RE2.test(text)) : false
+    if(genImageIntent && user && keyToUse){
+      const uid3=auth.currentUser?.uid
+      setInput(""); setError("")
+      setAttachedImage(null); setAttachedDoc(null); setShowPlus(false)
+      setIsStreaming(true); setIsGenImage(true); setShowLoader(false); setStreamText("")
+      let assistantMsg
+      try{
+        const gen=await generateImageNow(text, base, keyToUse)
+        assistantMsg = gen.ok
+          ? { role:"assistant", content:"", imageGen:{ url:gen.url, alt:gen.prompt }, createdAt:Date.now(), id:newId() }
+          : { role:"assistant", content: gen.blocked ? "I'm sorry, but image generation isn't available right now." : "I'm sorry, but I can't generate any image — no image model is available.", createdAt:Date.now(), id:newId() }
+      }catch{ assistantMsg={ role:"assistant", content:"I'm sorry, but I can't generate any image right now.", createdAt:Date.now(), id:newId() } }
+      setIsGenImage(false); setShowLoader(false); setStreamText("")
+      const finalGenChat={ ...updatedUserChat, messages:[...updatedUserChat.messages, assistantMsg], updatedAt:Date.now() }
+      setConversations(prev=> prev.map(c=> c.id===targetChatId? finalGenChat : c))
+      if(uid3) try{ await set(dbRef(rtdb, `users/${uid3}/chats/${targetChatId}`), finalGenChat) }catch(e){ console.debug("save gen",e) }
+      if(text && user){
+        const entry={ t:Date.now(), s:text.trim().slice(0,120) }
+        const prevMem=memForPrompt||memory||DEFAULT_MEMORY()
+        const next={ ...prevMem, name:(saidName||prevMem.name||""), rollup:[...(Array.isArray(prevMem.rollup)?prevMem.rollup:[]), entry].slice(-12), updatedAt:Date.now() }
+        setMemory(next); saveMemory(user.uid, next).catch(()=>{})
+      }
+      setIsStreaming(false); setIsGenImage(false)
+      return
     }
 
     setInput(""); setError("")
@@ -776,12 +851,35 @@ export default function App({ updateNotice: initialUpdateNotice }){
                             {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                           </button>
                            <div className="prose prose-invert prose-sm max-w-full overflow-hidden break-words pr-7" dangerouslySetInnerHTML={{__html: renderMarkdownWithCanvas(m.content)}} />
+                           {m.imageGen && (
+                             <div className="flex flex-col items-start gap-2 mt-2">
+                               {m.imageGen.url && (
+                                 <img src={m.imageGen.url} alt={m.imageGen.alt||"Generated image"} loading="lazy" className="max-w-[260px] w-full rounded-2xl border border-white/10 shadow-xl" />
+                               )}
+                               {m.imageGen.url && (
+                                 <button type="button" onClick={()=> downloadGenerated(m.imageGen.url)} className="glass-button px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5" title="Download image">
+                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+                                   Download
+                                 </button>
+                               )}
+                             </div>
+                           )}
                            {m.images && m.images.length>0 && <ImageStrip images={m.images} />}
                         </div>
                       </motion.div>
                     )}
                   </div>
                   )})}
+                {isGenImage && (
+                  <motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="flex gap-4 min-w-0 max-w-full">
+                    <div className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center shrink-0">
+                      <Sparkles className="w-4 h-4 text-gray-200" />
+                    </div>
+                    <div className="flex-1 min-w-0 max-w-full pt-1 text-sm leading-relaxed text-gray-300 overflow-hidden break-words">
+                      <div className="flex items-center gap-2"><div className="nova-loader"><span className="nova-loader-dot"/><span className="nova-loader-dot"/><span className="nova-loader-dot"/></div><span style={{fontSize:"0.9em"}}>Generating image…</span></div>
+                    </div>
+                  </motion.div>
+                )}
                 {isStreaming && (
                   <motion.div initial={{opacity:0,y:10}} animate={{opacity:1,y:0}} className="flex gap-4 min-w-0 max-w-full">
                     <div className="w-8 h-8 rounded-full border border-white/10 bg-white/5 flex items-center justify-center shrink-0">
