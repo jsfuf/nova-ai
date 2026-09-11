@@ -106,14 +106,17 @@ function renderMarkdownWithCanvas(md){
 }
 
 function ImageStrip({ images }){
+  const [failed,setFailed]=useState({})
   if(!images || !images.length) return null
+  const visible=images.slice(0,3).map((img,i)=> failed[i] ? null : img)
+  if(!visible.some(Boolean)) return null
   return (
     <div className="nova-image-strip" aria-label="Related images">
       <div className="nova-image-track">
-        {images.slice(0,3).map((img,i)=>(
+        {visible.map((img,i)=>(
           <div key={i} className="nova-image-card" title={img.title||"Image"}>
-            <img src={img.url} alt={img.alt||img.title||"Image"} loading="lazy" onError={e=> e.currentTarget.style.display="none"} />
-            <span className="nova-image-meta"><span>{img.title||"Image"}</span></span>
+            <img src={img.url} alt={img.alt||img.title||"Image"} loading="lazy" onError={()=> setFailed(f=> ({...f, [i]:true}))} />
+            {!failed[i] && <span className="nova-image-meta"><span>{img.title||"Image"}</span></span>}
           </div>
         ))}
       </div>
@@ -1172,7 +1175,6 @@ export default function App({ updateNotice: initialUpdateNotice }){
                               <div className={`relative aspect-square rounded-2xl overflow-hidden cursor-pointer border-2 ${bgDraft.activeUrl===u?"border-white/60 shadow-[0_0_16px_rgba(255,255,255,0.12)]":"border-white/8 hover:border-white/25"} transition-all duration-200`} onClick={()=> setBgDraft(d=> d ? ({ ...d, activeUrl: u, }) : d)}>
                                 <img src={u} alt="" className="w-full h-full object-cover" loading="lazy" />
                                 {bgDraft.activeUrl===u && <div className="absolute top-2 left-2 w-5 h-5 rounded-full bg-white/90 grid place-items-center shadow"><Check className="w-3 h-3 text-black" strokeWidth={3} /></div>}
-                                <button className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/55 backdrop-blur-sm grid place-items-center text-white/90 hover:bg-black/75 transition-colors" aria-label="Delete background" onClick={(e)=>{ e.stopPropagation(); deleteBgImage(i) }}><Trash2 className="w-3.5 h-3.5" /></button>
                               </div>
                             </motion.div>
                           ))}
@@ -1191,10 +1193,19 @@ export default function App({ updateNotice: initialUpdateNotice }){
                               <span className="text-[11px] text-gray-400 font-semibold">Fine-tune brightness</span>
                               <span className="text-[11px] text-gray-500">{Math.round(((bgDraft.brightness||1)-0.35)/1.65*100)}%</span>
                             </div>
-                            <motion.button whileTap={{scale:0.96}} type="button" className={`self-start flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-[11px] font-semibold transition-colors duration-150 ${bgEditOpen?"bg-white/15 text-white":"glass-button text-gray-300"}`} onClick={()=> setBgEditOpen(v=> !v)} style={{ boxShadow: bgEditOpen ? "0 0 0 1px rgba(255,255,255,0.18), 0 8px 24px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.2)" : undefined }}>
-                              <Volume2 className="w-3.5 h-3.5" />
-                              {bgEditOpen ? "Close brightness" : "Brightness"}
-                            </motion.button>
+                            <div className="flex items-center gap-2">
+                              <motion.button whileTap={{scale:0.96}} type="button" className={`flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-[11px] font-semibold transition-colors duration-150 ${bgEditOpen?"bg-white/15 text-white":"glass-button text-gray-300"}`} onClick={()=> setBgEditOpen(v=> !v)} style={{ boxShadow: bgEditOpen ? "0 0 0 1px rgba(255,255,255,0.18), 0 8px 24px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.2)" : undefined }}>
+                                <Volume2 className="w-3.5 h-3.5" />
+                                {bgEditOpen ? "Close brightness" : "Brightness"}
+                              </motion.button>
+                              <AnimatePresence>
+                                {!bgEditOpen && (
+                                  <motion.button type="button" aria-label="Delete background" onClick={()=> deleteBgImage(bgDraft.images.findIndex(x=> x===bgDraft.activeUrl))} initial={{opacity:0, scale:0.85}} animate={{opacity:1, scale:1}} exit={{opacity:0, scale:0.85}} transition={{duration:0.18}} className="flex items-center gap-2 pl-3 pr-4 py-2 rounded-full text-[11px] font-semibold glass-button text-red-300 hover:text-red-200">
+                                    <Trash2 className="w-3.5 h-3.5" /> Delete
+                                  </motion.button>
+                                )}
+                              </AnimatePresence>
+                            </div>
                             <AnimatePresence>
                               {bgEditOpen && (
                                 <motion.div initial={{opacity:0, height:0}} animate={{opacity:1, height:"auto"}} exit={{opacity:0, height:0}} transition={{type:"tween", duration:0.2, ease:"easeOut"}} className="overflow-hidden">
