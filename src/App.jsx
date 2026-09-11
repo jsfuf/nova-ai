@@ -15,6 +15,10 @@ const LS_RESEARCH = "nova_research"
 const FALLBACK_MODELS = ["ollama/gpt-oss:120b","claude-sonnet-4-5","nvidia/minimaxai/minimax-m2.7"]
 const VISION_MODELS = ["claude-sonnet-4-5","ollama/gpt-oss:120b","nvidia/minimaxai/minimax-m2.7"]
 const LINK_MODELS = ["claude-sonnet-4-5","ollama/gpt-oss:120b","nvidia/minimaxai/minimax-m2.7"]
+const CHAT_SEARCH_RE = /(?:have i|have we|had i|did i|did we|do i|have you|have u|do you|do u)\b[\s\S]{0,50}\b(?:chat|chats|chatted|talk|talked|ask|asked|mention|mentioned|say|said|discuss|discussed|conversation|conversations|history|message)\b[\s\S]{0,30}\b(?:about|on|with|regarding|talking)\b/i
+const CHAT_SEARCH_RE2 = /\b(?:find|search|go through|look (?:up|for|through)|show me|check)\b[\s\S]{0,40}\b(?:chat|chats|conversation|conversations|history|messages?|talk|talked)\b/i
+const STOPWORDS=new Set(["the","and","for","are","that","this","have","has","had","was","were","will","with","about","from","they","you","your","them","what","when","where","which","there","their","would","could","should","been","being","please","tell","show","find","search","look","any","chat","chats","conversation","conversations","chatting","talk","talked","talking","made","make","i","we","me","my","our","us","a","an","to","of","in","on","at","do","did","does","not","just","very","like","really","phone","phones"])
+const tokensFrom=(s)=>{ const raw=[...new Set((s||"").toLowerCase().replace(/[^a-z0-9'\s-]/g," ").split(/\s+/))]; return raw.filter(w=> w.length>=3 && !STOPWORDS.has(w)) }
 
 function shortTitle(t){ const s=t.trim().replace(/\s+/g," "); if(!s) return "New chat"; if(s.length<=42) return s; const sl=s.slice(0,42); const ls=sl.lastIndexOf(" "); return (ls>18? sl.slice(0,ls):sl)+"..." }
 function newId(){ return Math.random().toString(36).slice(2,9)+Date.now().toString(36).slice(-4) }
@@ -154,13 +158,11 @@ export default function App({ updateNotice: initialUpdateNotice }){
   const abortRef=useRef(null), listRef=useRef(null), taRef=useRef(null), rafRef=useRef(null), streamFullRef=useRef(""), fileInputRef=useRef(null), recognitionRef=useRef(null), mediaRecorderRef=useRef(null), longPressRef=useRef(null)
   const [conversationsLoading,setConversationsLoading]=useState(true)
   const activeConv=useMemo(()=>{ if(!conversations.length) return null; return conversations.find(c=>c.id===activeId)||conversations[0] },[conversations,activeId])
-  const [updateToast,setUpdateToast]=useState(initialUpdateNotice ? "App updated to the latest version" : "")
+  const [updateToast,setUpdateToast]=useState(initialUpdateNotice ? "Updated" : "")
 
-  useEffect(()=>{ if(updateToast) setTimeout(()=> setUpdateToast(""), 5000) },[updateToast])
+  useEffect(()=>{ if(updateToast) setTimeout(()=> setUpdateToast(""), 1500) },[updateToast])
   const [memory,setMemory]=useState(null)
-  const [memoryToast,setMemoryToast]=useState("")
 
-  useEffect(()=>{ if(memoryToast) setTimeout(()=> setMemoryToast(""), 4000) },[memoryToast])
   useEffect(()=>{
     if(!user) return
     const uid=user.uid
@@ -335,22 +337,6 @@ export default function App({ updateNotice: initialUpdateNotice }){
     setConversations(prev=> prev.filter(c=>c.id!==id))
     if(uid) try{ await remove(dbRef(rtdb, `users/${uid}/chats/${id}`)) }catch(e){ console.debug("remove",e)}
   }
-  const handleDeleteMemory=async ()=>{
-    if(!user) return
-    const fresh=DEFAULT_MEMORY()
-    setMemory(fresh)
-    try{ await saveMemory(user.uid, fresh) }catch(e){ console.debug("mem",e) }
-    setMemoryToast("Memory deleted – starting fresh")
-    setShowSettings(false)
-  }
-  const handleNewMemory=async ()=>{
-    if(!user) return
-    const fresh=DEFAULT_MEMORY()
-    setMemory(fresh)
-    try{ await saveMemory(user.uid, fresh) }catch(e){ console.debug("mem",e) }
-    setMemoryToast("New memory created")
-    setShowSettings(false)
-  }
   const handleSend=async (overrideText)=>{
     const text=(overrideText ?? input).trim()
     if(!text && !attachedImage && !attachedDoc) return
@@ -360,7 +346,32 @@ export default function App({ updateNotice: initialUpdateNotice }){
       const next={ ...(memory||DEFAULT_MEMORY()), name:saidName, updatedAt:Date.now() }
       setMemory(next); memForPrompt=next
       saveMemory(user.uid, next).catch(()=>{})
-      setMemoryToast(`I'll remember you as ${saidName} ✓`)
+    }
+    let histContext=""
+    const isChatSearch= text ? (CHAT_SEARCH_RE.test(text)||CHAT_SEARCH_RE2.test(text)) : false
+    if(isChatSearch && text && conversations.length){
+      const topicM=text.match(/\b(?:about|on|with|regarding|involving)\b\s+([\s\S]+)$/i)
+      const topicToks=tokensFrom(topicM? topicM[1] : "")
+      const qToks=tokensFrom(text)
+      const toks=topicToks.length ? topicToks : qToks
+      if(toks.length){
+        const foundChats=[]
+        for(const c of conversations){
+          const msgs=Array.isArray(c.messages) ? c.messages : []
+          let found=null
+          for(const m of msgs){
+            const hay=(" "+(m.content||"")+" ").toLowerCase()
+            const matched=toks.filter(t2=> hay.includes(t2))
+            if(matched.length){ found={ chatTitle:c.title, time:c.updatedAt||c.createdAt, snippet:(m.content||"").replace(/\s+/g," ").trim().slice(0,180), matched }; break }
+          }
+          if(found) foundChats.push(found)
+        }
+        if(foundChats.length){
+          histContext="\n\n[SYSTEM: The user asked you to search their own chat history. You searched and found these real past chats that match — answer the user using these actual facts:\n"+foundChats.slice(0,5).map(h=>`- Chat "${h.chatTitle}" (${new Date(h.time).toLocaleString()}): "...${h.snippet}..."`).join("\n")+"\n]"
+        } else {
+          histContext="\n\n[SYSTEM: The user asked about their chat history but you found NO past chats matching. Tell them honestly nothing matched and offer to search something else.]"
+        }
+      }
     }
     // if a previous reply is still streaming (e.g. you just opened a new chat and said "hi"), abort it and continue — never leave a blank bubble
     if(isStreaming){
@@ -402,9 +413,10 @@ export default function App({ updateNotice: initialUpdateNotice }){
     setAttachedImage(null); setAttachedDoc(null); setShowPlus(false)
     setIsStreaming(true); setStreamText(""); streamFullRef.current=""; setShowLoader(true)
     const controller=new AbortController(); abortRef.current=controller
-    const payloadMessages=updatedUserChat.messages.map(m=>{
-      if(m.image && m.role==="user") return { role:m.role, content:[{type:"text", text:m.content},{type:"image_url", image_url:{url:m.image}}] }
-      return { role:m.role, content:m.content }
+    const payloadMessages=updatedUserChat.messages.map((m,i,arr)=>{
+      const mcontent = (histContext && m.role==="user" && i===arr.length-1) ? m.content + histContext : m.content
+      if(m.image && m.role==="user") return { role:m.role, content:[{type:"text", text:mcontent},{type:"image_url", image_url:{url:m.image}}] }
+      return { role:m.role, content:mcontent }
     })
     // keep targetChatId in closure for assistant save
     const _saveTargetId=targetChatId
@@ -564,16 +576,8 @@ export default function App({ updateNotice: initialUpdateNotice }){
       <div className="fixed inset-0 z-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: "url('data:image/svg+xml,%3Csvg viewBox=\"0 0 200 200\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cfilter id=\"noiseFilter\"%3E%3CfeTurbulence type=\"fractalNoise\" baseFrequency=\"0.8\" numOctaves=\"3\" stitchTiles=\"stitch\"/%3E%3C/filter%3E%3Crect width=\"100%25\" height=\"100%25\" filter=\"url(%23noiseFilter)\"/%3E%3C/svg%3E')" }}></div>
 
       {updateToast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-full glass-panel text-sm font-medium text-white shadow-xl flex items-center gap-2" style={{ background:"linear-gradient(135deg, rgba(99,102,241,0.4), rgba(139,92,246,0.4))", border:"1px solid rgba(255,255,255,0.15)" }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style={{color:"#4ade80"}}><path d="M20 6L9 17l-5-5"/></svg>
-          {updateToast}
-        </div>
-      )}
-
-      {memoryToast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[60] px-4 py-2.5 rounded-full glass-panel text-sm font-medium text-white shadow-xl flex items-center gap-2" style={{ background:"linear-gradient(135deg, rgba(16,185,129,0.35), rgba(56,189,248,0.35))", border:"1px solid rgba(255,255,255,0.15)" }}>
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style={{color:"#6ee7b7"}}><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M12 22V12"/></svg>
-          {memoryToast}
+        <div className="fixed top-3 left-1/2 -translate-x-1/2 z-[70] px-3 py-1 rounded-full glass-panel text-[11px] font-semibold text-white shadow-md" style={{ background:"rgba(99,102,241,0.7)", border:"1px solid rgba(255,255,255,0.15)" }}>
+          Updated
         </div>
       )}
 
@@ -872,13 +876,13 @@ export default function App({ updateNotice: initialUpdateNotice }){
               <h3 className="text-sm font-bold text-gray-100">Settings</h3>
               <button className="glass-button w-8 h-8 grid place-items-center rounded-xl" onClick={()=> setShowSettings(false)}>✕</button>
             </div>
-            <div className="p-4 pt-2 grid grid-cols-1 md:grid-cols-[132px_1fr] gap-4">
-              <div className="flex md:flex-col gap-1 overflow-auto">
-                {["general","appearance","voice","research","memory","account"].map(tab=>(
+            <div className="p-4 pt-2 flex flex-row-reverse gap-4">
+              <div className="flex flex-col gap-1 overflow-y-auto max-h-[300px] shrink-0 w-[120px]">
+                {["general","appearance","voice","research","account"].map(tab=>(
                   <button key={tab} className={`text-left px-3 py-2 rounded-xl text-sm capitalize ${settingsTab===tab?"bg-white/10 text-white":"text-gray-400 hover:bg-white/5 hover:text-gray-200"}`} onClick={()=> setSettingsTab(tab)}>{tab}</button>
                 ))}
               </div>
-              <div className="space-y-4">
+              <div className="flex-1 min-w-0 space-y-4">
                 {settingsTab==="general" && (
                   <>
                     <div><div className="text-xs font-semibold text-gray-400 mb-1">About</div><p className="text-sm text-gray-400 leading-relaxed">Nova AI by Daniel, co-founder of Nova AI — curated collection of high-end models for the best results.</p></div>
@@ -895,26 +899,7 @@ export default function App({ updateNotice: initialUpdateNotice }){
                 {settingsTab==="research" && (
                   <div><div className="text-xs font-semibold text-gray-400 mb-1">Research</div><p className="text-sm text-gray-400">When enabled, Nova pastes real Wikimedia images inline — max 3 fitted, never link lists.</p><label className="flex items-center gap-2 text-sm text-gray-300 mt-2"><input type="checkbox" checked={researchMode} onChange={e=> setResearchMode(e.target.checked)} /> Enable research & images</label></div>
                 )}
-                {settingsTab==="memory" && (
-                  <div className="space-y-3">
-                    <div className="text-xs font-semibold text-gray-400 mb-1">Memory</div>
-                    <p className="text-sm text-gray-400 leading-relaxed">Nova keeps a private, encrypted memory of your name and past chats so it can give you the best answers.</p>
-                    <div className="glass rounded-2xl p-3 bg-white/[0.04]">
-                      <div className="text-xs text-gray-500">Remembered name</div>
-                      <div className="text-sm font-semibold text-white mt-0.5 capitalize">{memory?.name || "Not set yet — tell Nova “my name is …”"}</div>
-                    </div>
-                    <div className="glass rounded-2xl p-3 bg-white/[0.04]">
-                      <div className="text-xs text-gray-500">Past chats remembered</div>
-                      <div className="text-sm font-semibold text-white mt-0.5">{memory?.rollup?.length ? `${memory.rollup.length} recent chats` : "None yet — they build as you chat"}</div>
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      <button className="glass-button px-3 py-1.5 rounded-full text-sm" onClick={handleNewMemory}>Create new memory</button>
-                      <button className="px-3 py-1.5 rounded-full text-sm bg-red-500/15 text-red-300 border border-red-500/20" onClick={handleDeleteMemory}>Delete memory</button>
-                    </div>
-                    <p className="text-[11px] text-gray-500 leading-relaxed">Memory is encrypted and stored privately on your account. Only the app reads it — it is never shared with other users.</p>
-                  </div>
-                )}
-                  {settingsTab==="account" && (
+                {settingsTab==="account" && (
                   <div>
                     <div className="text-xs font-semibold text-gray-400 mb-2">Account</div>
                     <div className="glass rounded-2xl p-3 flex items-center gap-3">
