@@ -93,6 +93,7 @@ textarea:focus, textarea:focus-visible{ outline:none !important; box-shadow:none
 .plus-pop{ position:absolute; bottom: calc(100% + 12px); left:0; background: rgba(0,0,0,0.72); backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:6px; display:flex; flex-direction:column; gap:4px; min-width:188px; box-shadow: 0 12px 40px rgba(0,0,0,0.45); z-index:10 }
 .plus-pop button{ display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:14px; border:none; background: transparent; color:#e5e7eb; font-size:13px; font-weight:500; cursor:pointer; text-align:left }
 .plus-pop button:hover{ background: rgba(255,255,255,0.06) }
+.camera-pop{ position:absolute; bottom: calc(100% + 12px); left:0; background: rgba(0,0,0,0.72); backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:6px; display:flex; flex-direction:column; gap:4px; min-width:188px; box-shadow: 0 12px 40px rgba(0,0,0,0.45); z-index:10 }
 .wave-bars{ display:flex; align-items:center; gap:2px; height:14px }
 .wave-bars span{ width:2px; border-radius:999px; background:#e5e7eb; animation: wave 0.7s infinite ease-in-out }
 .wave-bars span:nth-child(2){ animation-delay:.08s; height:10px } .wave-bars span:nth-child(1),.wave-bars span:nth-child(3){ height:6px } .wave-bars span:nth-child(4){ height:8px; animation-delay:.16s }

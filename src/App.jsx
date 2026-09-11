@@ -260,7 +260,7 @@ export default function App({ updateNotice: initialUpdateNotice }){
       canvas.getContext("2d").drawImage(video,0,0,canvas.width,canvas.height)
       const url=canvas.toDataURL("image/jpeg",0.85)
       stopCamera(); setCameraOn(false); setCameraError("")
-      setAttachedImage({ name:"Camera photo", url })
+      setAttachedImage({ name:"Camera", url })
     }catch{ setCameraError("Could not capture photo") }
   }
   useEffect(()=>{ if(!showPlus) return; const onDocClick=(e)=>{ const plusEl=document.getElementById("nova-plus-wrap"); const ta=taRef.current; if(plusEl && !plusEl.contains(e.target) && ta && !ta.contains(e.target)) setShowPlus(false) }; document.addEventListener("mousedown",onDocClick); return ()=> document.removeEventListener("mousedown",onDocClick) },[showPlus])
@@ -806,29 +806,14 @@ export default function App({ updateNotice: initialUpdateNotice }){
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 p-6 md:p-8 flex justify-center z-30 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none">
-          {cameraOn && (
-            <div className="fixed bottom-[5.5rem] left-1/2 -translate-x-1/2 z-40 w-[340px] max-w-[92vw] pointer-events-auto">
-              <div className="glass-panel rounded-3xl p-3 flex flex-col gap-3 shadow-[0_8px_40px_rgba(0,0,0,0.6)]" onClick={e=> e.stopPropagation()}>
-                <div className="relative rounded-2xl overflow-hidden bg-black aspect-[3/4] w-full">
-                  <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                  <button onClick={cancelCamera} className="absolute top-2 left-2 w-8 h-8 rounded-full bg-black/50 backdrop-blur-sm grid place-items-center text-sm text-white/80 hover:bg-black/70" aria-label="Back">✕</button>
-                  {cameraError && <div className="absolute inset-0 grid place-items-center text-sm text-gray-400 p-6 text-center bg-black/80">{cameraError}</div>}
-                </div>
-                <div className="flex items-center justify-center gap-6 pb-1">
-                  <button onClick={()=>{ stopCamera(); setCameraOn(false); setShowPlus(true) }} className="glass-button px-4 py-2 rounded-full text-xs text-gray-300">← Back</button>
-                  <button onClick={capturePhoto} className="w-14 h-14 rounded-full border-[3px] border-white/70 bg-white/10 flex items-center justify-center shrink-0 active:scale-95 transition-transform" aria-label="Take photo">
-                    <span className="w-10 h-10 rounded-full bg-white shrink-0" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
           <div className="flex items-end gap-3 w-full max-w-3xl pointer-events-auto relative">
             {attachedImage && (
-              <div className="absolute bottom-full mb-3 left-0 glass rounded-2xl px-3 py-2 flex items-center gap-3 max-w-full">
-                <img src={attachedImage.url} alt="Preview" className="w-8 h-8 rounded-lg object-cover border border-white/10" />
-                <span className="text-xs text-gray-300 truncate max-w-[100px]">{attachedImage.name}</span>
-                <button className="mini-btn" onClick={()=> setAttachedImage(null)}>Remove</button>
+              <div className="absolute bottom-full mb-3 left-0 flex flex-col items-start gap-1 max-w-full pointer-events-auto">
+                <div className="relative">
+                  <img src={attachedImage.url} alt="Preview" className="w-16 h-16 rounded-xl object-cover" />
+                  <button onClick={()=> setAttachedImage(null)} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 grid place-items-center text-[10px] text-white shadow-md leading-none" aria-label="Remove">✕</button>
+                </div>
+                <span className="text-[10px] text-gray-400 truncate max-w-[72px]">{attachedImage.name}</span>
               </div>
             )}
             {attachedDoc && (
@@ -839,11 +824,26 @@ export default function App({ updateNotice: initialUpdateNotice }){
                 <button className="mini-btn" onClick={()=> setAttachedDoc(null)}>Remove</button>
               </div>
             )}
-            <div id="nova-plus-wrap" className="relative shrink-0 mb-1">
+<div id="nova-plus-wrap" className="relative shrink-0 mb-1">
             <motion.button whileHover={{scale:1.05}} whileTap={{scale:0.95}} className="w-12 h-12 rounded-full glass flex items-center justify-center" onClick={()=> setShowPlus(true)} aria-label="Attach">
               <Plus className="w-5 h-5 text-gray-300" />
             </motion.button>
-{showPlus && (
+              {cameraOn && (
+                <div className="camera-pop" onClick={e=> e.stopPropagation()}>
+                  <div className="relative rounded-[14px] overflow-hidden bg-black aspect-square w-full">
+                    <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                    <button onClick={cancelCamera} className="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-black/50 backdrop-blur-sm grid place-items-center text-[11px] text-white/80 hover:bg-black/70" aria-label="Back">✕</button>
+                    {cameraError && <div className="absolute inset-0 grid place-items-center text-[11px] text-gray-400 p-3 text-center bg-black/80">{cameraError}</div>}
+                  </div>
+                  <div className="flex items-center justify-center gap-5 py-1.5">
+                    <button onClick={()=>{ stopCamera(); setCameraOn(false); setShowPlus(true) }} className="px-3 py-1.5 rounded-full bg-white/[0.06] text-[11px] text-gray-300 font-medium">← Back</button>
+                    <button onClick={capturePhoto} className="w-11 h-11 rounded-full border-[2.5px] border-white/70 bg-white/10 flex items-center justify-center shrink-0 active:scale-95 transition-transform" aria-label="Take photo">
+                      <span className="w-8 h-8 rounded-full bg-white shrink-0" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              {showPlus && (
                 <div className="plus-pop" onClick={e=> e.stopPropagation()}>
                   <button type="button" onClick={()=> fileInputRef.current?.click()}>📎 Add file — image, PDF or Word</button>
                   <button type="button" onClick={openCamera}>📷 Camera</button>
