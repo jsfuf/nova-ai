@@ -108,15 +108,15 @@ function renderMarkdownWithCanvas(md){
 function ImageStrip({ images }){
   const [failed,setFailed]=useState({})
   if(!images || !images.length) return null
-  const visible=images.slice(0,3).map((img,i)=> failed[i] ? null : img)
-  if(!visible.some(Boolean)) return null
+  const visible=images.slice(0,3).map((img,srcIdx)=>({img, srcIdx})).filter(x=> !failed[x.srcIdx])
+  if(!visible.length) return null
   return (
     <div className="nova-image-strip" aria-label="Related images">
       <div className="nova-image-track">
-        {visible.map((img,i)=>(
-          <div key={i} className="nova-image-card" title={img.title||"Image"}>
-            <img src={img.url} alt={img.alt||img.title||"Image"} loading="lazy" onError={()=> setFailed(f=> ({...f, [i]:true}))} />
-            {!failed[i] && <span className="nova-image-meta"><span>{img.title||"Image"}</span></span>}
+        {visible.map(({img, srcIdx})=>(
+          <div key={srcIdx} className="nova-image-card" title={img.title||"Image"}>
+            <img src={img.url} alt={img.alt||img.title||"Image"} loading="lazy" onError={()=> setFailed(f=> ({...f, [srcIdx]:true}))} />
+            <span className="nova-image-meta"><span>{img.title||"Image"}</span></span>
           </div>
         ))}
       </div>
