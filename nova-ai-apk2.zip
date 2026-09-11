@@ -1,0 +1,1 @@
+Invalid PWA settings: navigationColor is required, splashScreenFadeOutDuration must be a non-negative safe integer, fallbackType is required, Signing options are required when signing mode = &#39;new&#39;

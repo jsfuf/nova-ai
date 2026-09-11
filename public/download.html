@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Download Nova AI</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#000000">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;overflow:hidden}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#000;color:#e5e7eb;display:flex;align-items:center;justify-content:center}
+    .screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#000}
+    .app-icon{width:80px;height:80px;border-radius:22px;background:linear-gradient(135deg,rgba(99,102,241,0.3),rgba(139,92,246,0.3));border:1px solid rgba(255,255,255,0.1);display:grid;place-items:center;margin-bottom:28px;box-shadow:0 8px 32px rgba(99,102,241,0.2)}
+    .app-icon svg{width:40px;height:40px;color:#e5e7eb}
+    .app-name{font-size:20px;font-weight:700;color:#f3f4f6;margin-bottom:6px}
+    .app-size{font-size:12px;color:#6b7280;margin-bottom:32px}
+    .progress-bar{width:220px;height:4px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden;margin-bottom:20px}
+    .progress-fill{height:100%;width:100%;border-radius:999px;background:linear-gradient(90deg,#6366f1,#a78bfa)}
+    .status{font-size:13px;color:#9ca3af;min-height:20px;text-align:center}
+    .status.done{color:#22c55e;font-weight:600}
+    .btn{position:relative;margin-top:24px;padding:14px 48px;border-radius:999px;border:none;background:#fff;color:#000;font-size:15px;font-weight:600;cursor:pointer;display:none;transition:all 0.2s}
+    .btn.visible{display:block}
+    .btn:active{transform:scale(0.97)}
+    .note{position:fixed;bottom:24px;left:0;right:0;text-align:center;font-size:11px;color:#4b5563;padding:0 32px}
+  </style>
+</head>
+<body>
+  <div class="screen">
+    <div class="app-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <div class="app-name">Nova AI</div>
+    <div class="app-size">Android App</div>
+    <div class="progress-bar"><div class="progress-fill"></div></div>
+    <div class="status" id="status">Preparing download...</div>
+    <button class="btn" id="dlBtn" onclick="startDownload()">Download App</button>
+  </div>
+  <div class="note">If the download doesn't start automatically, tap the button above.</div>
+
+  <script>
+    var APK_URL = 'https://files.catbox.moe/uczduu.apk';
+    function startDownload(){
+      var a = document.createElement('a');
+      a.href = APK_URL;
+      a.download = 'Nova AI.apk';
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      var s = document.getElementById('status');
+      s.textContent = 'Downloaded! Tap the notification to install.';
+      setTimeout(function(){
+        s.classList.add('done');
+        s.textContent = 'Downloaded! Tap the notification to install.';
+      }, 300);
+    }
+    window.addEventListener('load', function(){
+      setTimeout(startDownload, 700);
+    });
+  </script>
+</body>
+</html>

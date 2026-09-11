@@ -1,0 +1,8 @@
+{
+  "name": "Glass Chat UI",
+  "description": "A realistic liquid glass chat interface with smooth transitions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

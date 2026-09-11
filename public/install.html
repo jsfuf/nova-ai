@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Nova AI — Install</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%;overflow:hidden}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#000;color:#e5e7eb;display:flex;align-items:center;justify-content:center}
+    .screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;background:#000}
+    .screen.hidden{display:none}
+    .app-icon{width:80px;height:80px;border-radius:22px;background:linear-gradient(135deg,rgba(99,102,241,0.3),rgba(139,92,246,0.3));border:1px solid rgba(255,255,255,0.1);display:grid;place-items:center;margin-bottom:28px;box-shadow:0 8px 32px rgba(99,102,241,0.2)}
+    .app-icon svg{width:40px;height:40px;color:#e5e7eb}
+    .app-name{font-size:20px;font-weight:700;color:#f3f4f6;margin-bottom:6px}
+    .app-size{font-size:12px;color:#6b7280;margin-bottom:32px}
+    .progress-wrap{width:220px;margin-bottom:20px}
+    .progress-bar{width:100%;height:4px;border-radius:999px;background:rgba(255,255,255,0.08);overflow:hidden}
+    .progress-fill{height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#6366f1,#a78bfa);transition:width 0.3s ease}
+    .status{font-size:13px;color:#9ca3af;min-height:20px;text-align:center}
+    .status.done{color:#22c55e;font-weight:600}
+    .status.error{color:#ef4444}
+    .btn-install{margin-top:24px;padding:14px 48px;border-radius:999px;border:none;background:#fff;color:#000;font-size:15px;font-weight:600;cursor:pointer;display:none;transition:all 0.2s}
+    .btn-install:active{transform:scale(0.97)}
+    .ios-guide{display:none;position:fixed;inset:0;z-index:200;background:#000;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center}
+    .ios-guide.show{display:flex}
+    .ios-guide h2{font-size:18px;font-weight:600;color:#f3f4f6;margin-bottom:12px}
+    .ios-guide p{font-size:14px;color:#9ca3af;line-height:1.7;margin-bottom:8px}
+    .ios-guide .step{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);margin:8px 0;width:100%;max-width:340px}
+    .ios-guide .step-num{width:28px;height:28px;border-radius:50%;background:rgba(99,102,241,0.2);display:grid;place-items:center;font-size:13px;font-weight:700;color:#a78bfa;flex-shrink:0}
+    .ios-guide .step-text{font-size:13px;color:#d1d5db;text-align:left}
+    @keyframes progress{0%{width:0%}20%{width:25%}50%{width:60%}80%{width:85%}100%{width:95%}}
+    .progress-fill.animating{animation:progress 2.5s ease-out forwards}
+  </style>
+</head>
+<body>
+  <!-- Android auto-install screen -->
+  <div class="screen" id="androidScreen">
+    <div class="app-icon">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+        <path d="M2 17l10 5 10-5"/>
+        <path d="M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <div class="app-name">Nova AI</div>
+    <div class="app-size">Progressive Web App</div>
+    <div class="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    </div>
+    <div class="status" id="statusText">Preparing install...</div>
+    <button class="btn-install" id="installBtn">Install Now</button>
+  </div>
+
+  <!-- iOS guide screen -->
+  <div class="ios-guide" id="iosScreen">
+    <h2>Install Nova AI</h2>
+    <p>Tap the button below to open in Safari, then follow the steps:</p>
+    <div class="step"><div class="step-num">1</div><div class="step-text">Tap the <strong>Share</strong> button <span style="font-size:16px">&#8593;</span> at the bottom of Safari</div></div>
+    <div class="step"><div class="step-num">2</div><div class="step-text">Scroll down and tap <strong>"Add to Home Screen"</strong></div></div>
+    <div class="step"><div class="step-num">3</div><div class="step-text">Tap <strong>"Add"</strong> in the top right corner</div></div>
+    <p style="margin-top:16px;font-size:13px;color:#6b7280">Nova AI will appear on your home screen</p>
+  </div>
+
+  <script>
+    (function(){
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+      const isAndroid = /Android/i.test(navigator.userAgent);
+      const statusEl = document.getElementById('statusText');
+      const progressFill = document.getElementById('progressFill');
+      const installBtn = document.getElementById('installBtn');
+
+      // iOS: show guide immediately
+      if(isIOS){
+        document.getElementById('iosScreen').classList.add('show');
+        document.getElementById('androidScreen').classList.add('hidden');
+        return;
+      }
+
+      // Android: start progress animation immediately
+      progressFill.classList.add('animating');
+      statusEl.textContent = 'Preparing install...';
+
+      let deferredPrompt = null;
+
+      window.addEventListener('beforeinstallprompt', function(e){
+        e.preventDefault();
+        deferredPrompt = e;
+        statusEl.textContent = 'Ready to install';
+        progressFill.style.width = '100%';
+        installBtn.style.display = 'block';
+
+        // Auto-trigger install prompt immediately
+        setTimeout(function(){ doInstall(); }, 300);
+      });
+
+      window.addEventListener('appinstalled', function(){
+        statusEl.textContent = '✓ Installed! Check your home screen.';
+        statusEl.classList.add('done');
+        progressFill.style.width = '100%';
+        installBtn.style.display = 'none';
+        deferredPrompt = null;
+      });
+
+      installBtn.addEventListener('click', function(){ doInstall(); });
+
+      function doInstall(){
+        if(!deferredPrompt) return;
+        installBtn.style.display = 'none';
+        statusEl.textContent = 'Installing...';
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then(function(choice){
+          if(choice.outcome === 'accepted'){
+            statusEl.textContent = '✓ Installed! Check your home screen.';
+            statusEl.classList.add('done');
+            progressFill.style.width = '100%';
+          } else {
+            statusEl.textContent = 'Tap Install to continue';
+            installBtn.style.display = 'block';
+          }
+          deferredPrompt = null;
+        });
+      }
+
+      // If no prompt fires in 4s, the browser may not support it — show install button as fallback
+      setTimeout(function(){
+        if(!deferredPrompt){
+          statusEl.textContent = 'Tap below to install';
+          installBtn.style.display = 'block';
+          installBtn.textContent = 'Install Nova AI';
+          installBtn.onclick = function(){
+            // Redirect to main app — Chrome will show the install banner
+            window.location.href = '/';
+          };
+        }
+      }, 4000);
+    })();
+  </script>
+</body>
+</html>

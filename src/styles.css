@@ -1,0 +1,134 @@
+﻿* { box-sizing: border-box }
+html, body { height: 100% }
+html{ background:#000; overflow-x:hidden }
+body{
+  margin:0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color: #e5e7eb;
+  background: #000000;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+html, body, #root, .nova-root{ max-width:100vw; overflow-x:hidden }
+a{ color:inherit }
+code{ font-family: ui-monospace, SFMono-Regular, Menlo, monospace }
+button{ font-family: inherit }
+:focus-visible{ outline: 2px solid rgba(255,255,255,.18); outline-offset:2px; border-radius:6px }
+textarea:focus, textarea:focus-visible{ outline:none !important; box-shadow:none !important; border-color: transparent !important }
+.glass:has(textarea:focus){ box-shadow: 0 8px 32px rgba(0,0,0,0.32), inset 0 1px 1px rgba(255,255,255,0.14) }
+
+/* Nova layout wrappers — map to Glass Chat UI structure */
+.nova-root{ display:flex; height:100vh; height:100dvh; width:100%; overflow:hidden; background:#000; color:#e5e7eb }
+.glass { background: rgba(255,255,255,0.03); backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border:1px solid rgba(255,255,255,0.08); box-shadow: 0 8px 32px rgba(0,0,0,0.32), inset 0 1px 1px rgba(255,255,255,0.14), inset 0 -1px 1px rgba(0,0,0,0.22) }
+.glass-panel { background: rgba(0,0,0,0.30); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border:1px solid rgba(255,255,255,0.05); box-shadow: 0 12px 40px rgba(0,0,0,0.42), inset 0 1px 1px rgba(255,255,255,0.06) }
+.glass-button { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border:1px solid rgba(255,255,255,0.05); box-shadow: 0 4px 16px rgba(0,0,0,0.20), inset 0 1px 1px rgba(255,255,255,0.10); transition: all 300ms ease }
+.glass-button:hover{ background: rgba(255,255,255,0.08) }
+.custom-scrollbar{ scrollbar-width:thin; scrollbar-color: rgba(255,255,255,0.10) transparent }
+.custom-scrollbar::-webkit-scrollbar{ width:4px }
+.custom-scrollbar::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.10); border-radius:4px }
+/* prevent any horizontal page shift — keep everything fitted */
+*{ min-width:0 }
+.prose, .prose *{ max-width:100% }
+.prose{ overflow-wrap:anywhere; word-break:break-word; max-width:100%; line-height:1.65; overflow-wrap:anywhere }
+.prose pre:not(.code-canvas pre){ white-space:pre-wrap; word-break:break-word; overflow-x:auto; max-width:100%; border-radius:12px; background: rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); padding:12px 14px }
+.prose code:not(.code-canvas code){ white-space:pre-wrap; word-break:break-all; background: rgba(255,255,255,0.06); padding:1px 5px; border-radius:6px; font-size:0.9em }
+.prose p, .prose li, .prose h1, .prose h2, .prose h3{ overflow-wrap:anywhere; word-break:break-word; hyphens:auto }
+.prose a{ word-break:break-all }
+.prose img{ max-width:100%; height:auto }
+.prose h1,.prose h2,.prose h3{ color:#f3f4f6; font-weight:600; margin:14px 0 8px; line-height:1.35 }
+.prose ul,.prose ol{ padding-left:20px; margin:8px 0 }
+.prose li{ margin:4px 0 }
+/* fitted tables — never scrambled, always inside display on any device */
+.prose table{ width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.08); display:table; max-width:100%; margin:12px 0; background: rgba(255,255,255,0.02); backdrop-filter: blur(12px) }
+.prose thead{ background: rgba(255,255,255,0.06) }
+.prose th, .prose td{ border-bottom:1px solid rgba(255,255,255,0.06); border-right:1px solid rgba(255,255,255,0.06); padding:10px 12px; font-size:13px; text-align:left; overflow-wrap:anywhere; word-break:break-word; white-space:normal; vertical-align:top; line-height:1.5 }
+.prose th{ font-weight:600; color:#f3f4f6; background: rgba(255,255,255,0.04); font-size:12px; letter-spacing:0.02em; text-transform:uppercase }
+.prose th:last-child, .prose td:last-child{ border-right:none }
+.prose tr:last-child td{ border-bottom:none }
+.prose tbody tr:nth-child(even) td{ background: rgba(255,255,255,0.015) }
+.prose tbody tr:hover td{ background: rgba(255,255,255,0.03) }
+@media (max-width:640px){ .prose th,.prose td{ padding:8px 8px; font-size:12px } .prose table{ border-radius:10px } }
+/* code canvas — glass canvas for HTML/code with copy icon */
+.code-canvas{ margin:14px 0; border-radius:16px; overflow:hidden; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 8px 32px rgba(0,0,0,0.32), inset 0 1px 1px rgba(255,255,255,0.06); max-width:100% }
+.code-canvas-head{ display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background: rgba(255,255,255,0.04); border-bottom:1px solid rgba(255,255,255,0.06) }
+.code-canvas-lang{ font-size:11px; font-weight:600; color:#9ca3af; text-transform:lowercase; letter-spacing:0.04em }
+.code-canvas-copy{ display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.06); color:#e5e7eb; font-size:11px; font-weight:600; cursor:pointer; transition:all 0.2s }
+.code-canvas-copy:hover{ background: rgba(255,255,255,0.10); color:#fff; transform:scale(1.02) }
+.code-canvas-copy:active{ transform:scale(0.98) }
+.code-canvas pre{ margin:0 !important; padding:14px 16px !important; background:transparent !important; border:none !important; border-radius:0 !important; overflow-x:auto; max-width:100%; scrollbar-width:thin }
+.code-canvas pre code{ white-space:pre !important; word-break:normal !important; background:transparent !important; padding:0 !important; font-size:13px; line-height:1.6; color:#e5e7eb }
+@media (max-width:640px){ .code-canvas pre{ padding:12px !important } .code-canvas pre code{ font-size:12px } }
+/* per-chat copy button — tiny glass icon on each bubble */
+.chat-copy-btn{ position:absolute; top:6px; right:6px; width:28px; height:28px; display:grid; place-items:center; border-radius:8px; border:1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.35); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); color:#9ca3af; cursor:pointer; opacity:0; transform:scale(0.9); transition:all 0.2s; z-index:2 }
+.group:hover .chat-copy-btn, .chat-copy-btn:focus-visible, .chat-copy-btn.copied{ opacity:1; transform:scale(1) }
+.chat-copy-btn:hover{ background: rgba(255,255,255,0.10); color:#f3f4f6 }
+.chat-copy-btn.copied{ background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.2); color:#bbf7d0 }
+
+/* message bubbles — glass variant but keep Nova compatibility */
+.bubble{ line-height:1.55; font-size:14px; word-wrap:break-word; overflow-wrap:anywhere }
+.bubble.user{ background: rgba(255,255,255,0.03); backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border:1px solid rgba(255,255,255,0.08); color:#f3f4f6; border-radius: 24px; border-top-right-radius: 6px; padding:14px 20px; max-width:80%; box-shadow: 0 8px 32px rgba(0,0,0,0.30), inset 0 1px 1px rgba(255,255,255,0.14) }
+.bubble.assistant{ background: transparent; border:none; color:#d1d5db; width:100%; padding:4px 0 }
+.bubble.assistant .md{ width:100% }
+.msg-media{ margin-top:0; border-radius:12px; overflow:hidden; border:1px solid rgba(255,255,255,0.08); max-width:200px }
+.msg-media img{ width:100%; height:auto; display:block; max-height:160px; object-fit:cover }
+.nova-loader{ display:flex; gap:5px; align-items:center; padding:6px 2px }
+.nova-loader-dot{ width:5px; height:5px; border-radius:50%; background:#e5e7eb; animation: lb .9s infinite }
+.nova-loader-dot:nth-child(2){ animation-delay:.14s } .nova-loader-dot:nth-child(3){ animation-delay:.28s }
+@keyframes lb{ 0%,80%,100%{ opacity:.5 } 40%{ opacity:1; transform: translateY(-4px) } }
+.cursor{ display:inline-block; width:7px; height:13px; background:#e5e7eb; border-radius:2px; margin-left:2px; animation:blink 1s step-end infinite; vertical-align:-2px }
+@keyframes blink{ 50%{opacity:0} }
+
+/* compact horizontal image strip — max 6 small cards */
+.nova-image-strip{ width:100%; max-width:100%; margin-top:14px; overflow:hidden }
+.nova-image-track{ display:flex; gap:10px; width:100%; max-width:100%; overflow-x:auto; padding-bottom:4px; scroll-snap-type:x proximity; scrollbar-width:thin }
+.nova-image-card{ flex:0 0 176px; width:176px; aspect-ratio:16 / 9; height:auto; min-height:92px; max-height:112px; border-radius:16px; overflow:hidden; position:relative; border:1px solid rgba(255,255,255,0.07); background: rgba(255,255,255,0.03); backdrop-filter: blur(16px); scroll-snap-align:start }
+.nova-image-card img{ width:100%; height:100%; object-fit:cover; display:block }
+@media (max-width:640px){ .nova-image-card{ flex-basis:150px; width:150px } }
+.nova-image-meta{ position:absolute; left:0; right:0; bottom:0; padding:6px 8px; background: linear-gradient(180deg, transparent, rgba(0,0,0,.72)); color:#f3f4f6; font-size:11px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+
+/* plus popover + composer extras */
+.plus-pop{ position:absolute; bottom: calc(100% + 12px); left:0; background: rgba(0,0,0,0.72); backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px); border:1px solid rgba(255,255,255,0.08); border-radius:20px; padding:6px; display:flex; flex-direction:column; gap:4px; min-width:188px; box-shadow: 0 12px 40px rgba(0,0,0,0.45); z-index:10 }
+.plus-pop button{ display:flex; align-items:center; gap:8px; padding:9px 12px; border-radius:14px; border:none; background: transparent; color:#e5e7eb; font-size:13px; font-weight:500; cursor:pointer; text-align:left }
+.plus-pop button:hover{ background: rgba(255,255,255,0.06) }
+.wave-bars{ display:flex; align-items:center; gap:2px; height:14px }
+.wave-bars span{ width:2px; border-radius:999px; background:#e5e7eb; animation: wave 0.7s infinite ease-in-out }
+.wave-bars span:nth-child(2){ animation-delay:.08s; height:10px } .wave-bars span:nth-child(1),.wave-bars span:nth-child(3){ height:6px } .wave-bars span:nth-child(4){ height:8px; animation-delay:.16s }
+@keyframes wave{ 0%,100%{ transform: scaleY(0.7)} 50%{ transform: scaleY(1.35)} }
+
+/* modal — glass */
+.modal-backdrop{ position:fixed; inset:0; z-index:50; background: rgba(0,0,0,.62); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); display:grid; place-items:center; padding:16px }
+.modal{ width:100%; max-width:560px; max-height:90vh; overflow:auto; background: rgba(8,8,10,0.82); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px); border:1px solid rgba(255,255,255,0.08); border-radius:24px; box-shadow: 0 18px 48px rgba(0,0,0,0.55) }
+.modal-head{ display:flex; align-items:center; justify-content:space-between; padding:16px 16px 0 16px }
+.modal-head h3{ margin:0; font-size:14px; font-weight:700; color:#f3f4f6 }
+.modal-body{ padding:14px 16px; display:flex; flex-direction:column; gap:12px }
+.nova-settings-grid{ display:grid; grid-template-columns: 132px 1fr; gap:14px }
+.nova-settings-nav{ display:flex; flex-direction:column; gap:4px }
+.nova-settings-tab{ text-align:left; padding:8px 10px; border-radius:12px; border:1px solid transparent; background: transparent; color:#9ca3af; font-size:13px; font-weight:500; cursor:pointer }
+.nova-settings-tab.active{ background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.06); color:#f3f4f6 }
+.nova-settings-main{ display:flex; flex-direction:column; gap:12px }
+.field{ display:flex; flex-direction:column; gap:5px } .field span{ font-size:11.5px; font-weight:600; color:#a3a3a3 }
+.field-input{ width:100%; padding:9px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.04); color:#f3f4f6; font-size:13px; outline:none }
+.field-input:focus{ border-color: rgba(255,255,255,0.14) }
+.appearance-grid{ display:grid; grid-template-columns: 1fr 1fr; gap:8px }
+.appearance-card{ padding:10px 12px; border-radius:16px; border:1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.03); cursor:pointer; backdrop-filter: blur(16px) }
+.appearance-card.active{ border-color: rgba(255,255,255,0.14); background: rgba(255,255,255,0.06) }
+.appearance-card h4{ margin:0 0 2px; font-size:12.5px; font-weight:600; color:#f3f4f6 }
+.appearance-card p{ margin:0; font-size:11px; color:#9ca3af }
+.icon-btn{ width:30px; height:30px; display:grid; place-items:center; border-radius:10px; border:1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.04); color:#f3f4f6; cursor:pointer }
+.mini-btn{ font-size:11px; font-weight:600; padding:5px 9px; border-radius:999px; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.06); color:#e5e7eb; cursor:pointer }
+.mini-btn:hover{ background: rgba(255,255,255,0.10) }
+.ghost-btn{ padding:8px 12px; border-radius:999px; border:1px solid rgba(255,255,255,0.08); background: transparent; color:#f3f4f6; font-weight:600; font-size:12.5px; cursor:pointer }
+.primary-btn{ padding:8px 14px; border-radius:999px; border:none; background:#ffffff; color:#000000; font-weight:600; font-size:12.5px; cursor:pointer }
+.error-banner{ display:flex; align-items:center; gap:8px; background: rgba(239,68,68,0.08); border:1px solid rgba(239,68,68,0.14); color:#fecaca; border-radius:14px; padding:10px 12px; font-size:12.5px; width:100%; margin-top:12px }
+.error-banner .err-icon{ width:22px; height:22px; display:grid; place-items:center; border-radius:50%; background: rgba(239,68,68,0.16); flex-shrink:0 }
+@media (max-width: 860px){
+  .nova-settings-grid{ grid-template-columns: 1fr } .nova-settings-nav{ flex-direction:row; overflow:auto }
+}
+@media (max-width: 520px){ .appearance-grid{ grid-template-columns: 1fr } }
+@media (max-width: 640px){
+  .nova-composer{ width:calc(100vw - 16px) }
+}
+@media (prefers-reduced-motion: reduce){ *, *::before, *::after{ animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important } }

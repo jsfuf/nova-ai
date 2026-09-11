@@ -1,0 +1,29 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .glass {
+    @apply bg-white/[0.03] backdrop-blur-[32px] border border-white/[0.08] shadow-[0_8px_32px_0_rgba(0,0,0,0.3)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.15),inset_0_-1px_1px_rgba(0,0,0,0.2)];
+  }
+  
+  .glass-panel {
+    @apply bg-black/30 backdrop-blur-[40px] border border-white/[0.05] shadow-[0_12px_40px_0_rgba(0,0,0,0.4)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)];
+  }
+
+  .glass-button {
+    @apply bg-white/[0.03] hover:bg-white/[0.08] backdrop-blur-xl border border-white/[0.05] shadow-[0_4px_16px_0_rgba(0,0,0,0.2)] shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] transition-all duration-300;
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}

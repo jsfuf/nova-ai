@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.novaai.app",
+        "sha256_cert_fingerprints": ["FE:FD:28:59:E9:EC:D1:2A:BA:E9:DD:E7:35:DE:97:20:6A:A3:ED:28:12:4B:0E:2F:D2:C0:DD:71:5D:E5:C1:D7"]
+      }
+    }]
